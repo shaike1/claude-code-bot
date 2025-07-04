@@ -10,6 +10,9 @@ public class Terminal
     public string? CurrentTask { get; set; }
     public List<string> CommandHistory { get; set; } = new();
     public Dictionary<long, string> PendingChoices { get; set; } = new();
+    
+    public bool IsActive => Status != TerminalStatus.Terminated;
+    public DateTime CreatedAt => StartTime;
 }
 
 public enum TerminalStatus

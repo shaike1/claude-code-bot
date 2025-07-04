@@ -29,7 +29,7 @@ services:
     container_name: claude-terminal-orchestra
     restart: unless-stopped
     ports:
-      - "8765:8765"  # Claude hooks and webhooks
+      - "8765:8080"  # Web interface and API
       - "8766:8766"  # WebSocket interface
     volumes:
       - ./src/Backend/appsettings.json:/app/appsettings.json:ro
@@ -37,6 +37,10 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - DOTNET_RUNNING_IN_CONTAINER=true
+      - ASPNETCORE_URLS=http://+:8080
+      # Web UI credentials (change these!)
+      - WebUI__Username=admin
+      - WebUI__Password=claude123
       # WhatsApp WAHA Configuration
       - BotConfiguration__WhatsApp__WAHAUrl=http://waha:3000
       - BotConfiguration__WhatsApp__Enabled=true

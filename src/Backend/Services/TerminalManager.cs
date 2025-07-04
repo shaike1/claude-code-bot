@@ -307,6 +307,11 @@ public class TerminalManager : ITerminalManager
         _isShuttingDown = isShuttingDown;
     }
 
+    public IEnumerable<Terminal> GetActiveTerminals()
+    {
+        return _terminals.Values.Where(t => t.IsActive);
+    }
+
     public Task<bool> RenameTerminalAsync(string oldId, string newId)
     {
         if (!_terminals.TryRemove(oldId, out var terminal) || 

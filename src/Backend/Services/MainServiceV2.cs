@@ -484,7 +484,7 @@ Example:
         }
     }
 
-    private async void OnClaudeHookEventReceived(object? sender, ClaudeHookEvent hookEvent)
+    private void OnClaudeHookEventReceived(object? sender, ClaudeHookEvent hookEvent)
     {
         try
         {

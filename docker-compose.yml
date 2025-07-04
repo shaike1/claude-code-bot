@@ -6,7 +6,7 @@ services:
     container_name: claude-terminal-orchestra
     restart: unless-stopped
     ports:
-      - "8765:8765"  # WebSocket port for Claude hooks
+      - "8765:8080"  # Web UI and API
       - "8766:8766"  # WebSocket port for web interface
     volumes:
       - ./src/Backend/appsettings.json:/app/appsettings.json:ro
@@ -14,6 +14,10 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - DOTNET_RUNNING_IN_CONTAINER=true
+      - ASPNETCORE_URLS=http://+:8080
+      # Web UI credentials (change these!)
+      - WebUI__Username=admin
+      - WebUI__Password=claude123
     networks:
       - claude-network
 

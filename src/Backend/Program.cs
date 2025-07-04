@@ -2,6 +2,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using ClaudeMobileTerminal.Backend.Services;
 using ClaudeMobileTerminal.Backend.Channels;
 using ClaudeMobileTerminal.Backend.Configuration;
@@ -57,44 +60,65 @@ class Program
         {
             Log.Information("Starting ClaudeMobileTerminal application");
             
-            var host = Host.CreateDefaultBuilder(args)
-            .ConfigureAppConfiguration((context, config) =>
+            var builder = WebApplication.CreateBuilder(args);
+            
+            // Configure Serilog
+            builder.Host.UseSerilog();
+            
+            builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+            builder.Configuration.AddEnvironmentVariables("CMT_");
+            
+            // Configure services
+            var services = builder.Services;
+            
+            // Configuration
+            services.Configure<BotConfiguration>(builder.Configuration.GetSection("BotConfiguration"));
+            services.Configure<TerminalSettings>(builder.Configuration.GetSection("TerminalSettings"));
+            services.Configure<ClaudeHooksSettings>(builder.Configuration.GetSection("ClaudeHooks"));
+            services.Configure<WebSocketChannelConfiguration>(builder.Configuration.GetSection("WebSocketChannel"));
+            services.Configure<InteractiveAppSettings>(builder.Configuration.GetSection("InteractiveApps"));
+            
+            // Web services
+            services.AddControllers();
+            services.AddRazorPages();
+            
+            // Core services
+            services.AddSingleton<ITerminalManager, TerminalManager>();
+            services.AddSingleton<IClaudeHooksService, ClaudeHooksService>();
+            services.AddSingleton<TerminalOutputProcessor>();
+            services.AddSingleton<IMessageChannelManager, MessageChannelManager>();
+            
+            // HTTP Client for WhatsApp
+            services.AddHttpClient<WhatsAppChannel>();
+            
+            // Channel implementations
+            services.AddSingleton<TelegramChannel>();
+            services.AddSingleton<DiscordChannel>();
+            services.AddSingleton<WebSocketChannel>();
+            services.AddSingleton<WhatsAppChannel>();
+            
+            // Register channels with the manager
+            services.AddHostedService<ChannelRegistrationService>();
+            services.AddHostedService<MainServiceV2>();
+            
+            var app = builder.Build();
+            
+            // Configure pipeline
+            if (app.Environment.IsDevelopment())
             {
-                config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
-                config.AddEnvironmentVariables("CMT_");
-            })
-            .ConfigureServices((context, services) =>
-            {
-                // Configuration
-                services.Configure<BotConfiguration>(context.Configuration.GetSection("BotConfiguration"));
-                services.Configure<TerminalSettings>(context.Configuration.GetSection("TerminalSettings"));
-                services.Configure<ClaudeHooksSettings>(context.Configuration.GetSection("ClaudeHooks"));
-                services.Configure<WebSocketChannelConfiguration>(context.Configuration.GetSection("WebSocketChannel"));
-                services.Configure<InteractiveAppSettings>(context.Configuration.GetSection("InteractiveApps"));
-                
-                // Core services
-                services.AddSingleton<ITerminalManager, TerminalManager>();
-                services.AddSingleton<IClaudeHooksService, ClaudeHooksService>();
-                services.AddSingleton<TerminalOutputProcessor>();
-                services.AddSingleton<IMessageChannelManager, MessageChannelManager>();
-                
-                // HTTP Client for WhatsApp
-                services.AddHttpClient<WhatsAppChannel>();
-                
-                // Channel implementations
-                services.AddSingleton<TelegramChannel>();
-                services.AddSingleton<DiscordChannel>();
-                services.AddSingleton<WebSocketChannel>();
-                services.AddSingleton<WhatsAppChannel>();
-                
-                // Register channels with the manager
-                services.AddHostedService<ChannelRegistrationService>();
-                services.AddHostedService<MainServiceV2>();
-            })
-            .UseSerilog()  // Use Serilog for logging
-            .Build();
+                app.UseDeveloperExceptionPage();
+            }
+            
+            app.UseMiddleware<ClaudeMobileTerminal.Backend.Middleware.SimpleAuthMiddleware>();
+            app.UseStaticFiles();
+            app.UseRouting();
+            
+            app.MapControllers();
+            app.MapRazorPages();
+            app.MapGet("/", () => Results.Redirect("/manage"));
+            app.MapGet("/health", () => "OK");
 
-            await host.RunAsync();
+            await app.RunAsync();
         }
         catch (Exception ex)
         {

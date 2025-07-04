@@ -81,10 +81,10 @@ public class WhatsAppChannel : IMessageChannel
         }
     }
 
-    public async Task StopAsync(CancellationToken cancellationToken)
+    public Task StopAsync(CancellationToken cancellationToken)
     {
         if (!_isRunning)
-            return;
+            return Task.CompletedTask;
 
         _logger.LogInformation("Stopping WhatsApp channel...");
 
@@ -92,6 +92,7 @@ public class WhatsAppChannel : IMessageChannel
         _isRunning = false;
 
         _logger.LogInformation("WhatsApp channel stopped");
+        return Task.CompletedTask;
     }
 
     public async Task SendMessageAsync(string recipient, string message, Dictionary<string, string>? buttons = null)
@@ -258,13 +259,13 @@ public class WhatsAppChannel : IMessageChannel
         }
     }
 
-    private async Task ProcessMessageAsync(JsonElement message)
+    private Task ProcessMessageAsync(JsonElement message)
     {
         try
         {
             if (!message.TryGetProperty("from", out var fromElement) ||
                 !message.TryGetProperty("body", out var bodyElement))
-                return;
+                return Task.CompletedTask;
 
             var from = fromElement.GetString() ?? "";
             var body = bodyElement.GetString() ?? "";
@@ -273,7 +274,7 @@ public class WhatsAppChannel : IMessageChannel
             if (_config.AllowedNumbers.Any() && !_config.AllowedNumbers.Contains(from))
             {
                 _logger.LogDebug("Ignoring message from unauthorized number: {From}", from);
-                return;
+                return Task.CompletedTask;
             }
 
             // Parse command
@@ -294,6 +295,7 @@ public class WhatsAppChannel : IMessageChannel
         {
             _logger.LogError(ex, "Error processing WhatsApp message");
         }
+        return Task.CompletedTask;
     }
 
     public async Task ProcessWebhookAsync(string webhookBody)

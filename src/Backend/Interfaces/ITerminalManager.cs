@@ -12,5 +12,6 @@ public interface ITerminalManager
     Task<Terminal?> GetTerminalAsync(string terminalId);
     Task<bool> SendChoiceAsync(string terminalId, int choice);
     void SetShuttingDown(bool isShuttingDown);
+    IEnumerable<Terminal> GetActiveTerminals();
     event EventHandler<TerminalMessage>? TerminalMessageReceived;
 }

@@ -1,0 +1,399 @@
+@page "/manage"
+@{
+    ViewData["Title"] = "Claude Code Bot Management";
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .status-badge {
+            font-size: 0.8rem;
+        }
+        .config-section {
+            margin-bottom: 2rem;
+        }
+        .nav-pills .nav-link.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+        }
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+        }
+        .alert-dismissible {
+            margin-top: 1rem;
+        }
+        .form-control:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/manage">
+                <i class="fas fa-robot me-2"></i>Claude Code Bot
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/health" target="_blank">
+                    <i class="fas fa-heart-pulse me-1"></i>Health Check
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-cog me-2"></i>Configuration
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <ul class="nav nav-pills flex-column" id="configTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active w-100 text-start" id="overview-tab" data-bs-toggle="pill" data-bs-target="#overview" type="button" role="tab">
+                                    <i class="fas fa-dashboard me-2"></i>Overview
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link w-100 text-start" id="telegram-tab" data-bs-toggle="pill" data-bs-target="#telegram" type="button" role="tab">
+                                    <i class="fab fa-telegram me-2"></i>Telegram
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link w-100 text-start" id="discord-tab" data-bs-toggle="pill" data-bs-target="#discord" type="button" role="tab">
+                                    <i class="fab fa-discord me-2"></i>Discord
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link w-100 text-start" id="whatsapp-tab" data-bs-toggle="pill" data-bs-target="#whatsapp" type="button" role="tab">
+                                    <i class="fab fa-whatsapp me-2"></i>WhatsApp
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link w-100 text-start" id="websocket-tab" data-bs-toggle="pill" data-bs-target="#websocket" type="button" role="tab">
+                                    <i class="fas fa-plug me-2"></i>WebSocket
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link w-100 text-start" id="terminal-tab" data-bs-toggle="pill" data-bs-target="#terminal" type="button" role="tab">
+                                    <i class="fas fa-terminal me-2"></i>Terminal
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link w-100 text-start" id="hooks-tab" data-bs-toggle="pill" data-bs-target="#hooks" type="button" role="tab">
+                                    <i class="fas fa-link me-2"></i>Claude Hooks
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-9">
+                <div class="tab-content" id="configTabContent">
+                    <!-- Overview Tab -->
+                    <div class="tab-pane fade show active" id="overview" role="tabpanel">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="fas fa-dashboard me-2"></i>System Overview
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row" id="statusCards">
+                                    <!-- Status cards will be populated by JavaScript -->
+                                </div>
+                                
+                                <div class="row mt-4">
+                                    <div class="col-md-6">
+                                        <div class="card">
+                                            <div class="card-header bg-success text-white">
+                                                <h6 class="mb-0">Active Terminals</h6>
+                                            </div>
+                                            <div class="card-body" id="terminalsList">
+                                                <div class="text-center">
+                                                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                                                    <span class="ms-2">Loading...</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="card">
+                                            <div class="card-header bg-info text-white">
+                                                <h6 class="mb-0">System Information</h6>
+                                            </div>
+                                            <div class="card-body" id="systemInfo">
+                                                <div class="text-center">
+                                                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                                                    <span class="ms-2">Loading...</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Telegram Tab -->
+                    <div class="tab-pane fade" id="telegram" role="tabpanel">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="fab fa-telegram me-2"></i>Telegram Configuration
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <form id="telegramForm">
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="telegramEnabled">
+                                            <label class="form-check-label" for="telegramEnabled">
+                                                Enable Telegram Bot
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="telegramToken" class="form-label">Bot Token</label>
+                                        <input type="password" class="form-control" id="telegramToken" placeholder="Bot token from @@BotFather">
+                                        <div class="form-text">Get your bot token from @@BotFather on Telegram</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="telegramChatIds" class="form-label">Allowed Chat IDs</label>
+                                        <input type="text" class="form-control" id="telegramChatIds" placeholder="123456789,987654321">
+                                        <div class="form-text">Comma-separated list of allowed chat IDs</div>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-save me-2"></i>Save Telegram Settings
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Discord Tab -->
+                    <div class="tab-pane fade" id="discord" role="tabpanel">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="fab fa-discord me-2"></i>Discord Configuration
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <form id="discordForm">
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="discordEnabled">
+                                            <label class="form-check-label" for="discordEnabled">
+                                                Enable Discord Bot
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="discordToken" class="form-label">Bot Token</label>
+                                        <input type="password" class="form-control" id="discordToken" placeholder="Discord bot token">
+                                        <div class="form-text">Get your bot token from Discord Developer Portal</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="discordGuildIds" class="form-label">Allowed Guild IDs</label>
+                                        <input type="text" class="form-control" id="discordGuildIds" placeholder="123456789,987654321">
+                                        <div class="form-text">Comma-separated list of allowed Discord server IDs</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="discordChannelIds" class="form-label">Allowed Channel IDs</label>
+                                        <input type="text" class="form-control" id="discordChannelIds" placeholder="123456789,987654321">
+                                        <div class="form-text">Comma-separated list of allowed Discord channel IDs</div>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-save me-2"></i>Save Discord Settings
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- WhatsApp Tab -->
+                    <div class="tab-pane fade" id="whatsapp" role="tabpanel">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="fab fa-whatsapp me-2"></i>WhatsApp Configuration (WAHA)
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <form id="whatsappForm">
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="whatsappEnabled">
+                                            <label class="form-check-label" for="whatsappEnabled">
+                                                Enable WhatsApp Bot
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="wahaUrl" class="form-label">WAHA URL</label>
+                                        <input type="url" class="form-control" id="wahaUrl" placeholder="http://localhost:3000">
+                                        <div class="form-text">URL of your WAHA instance</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="sessionName" class="form-label">Session Name</label>
+                                        <input type="text" class="form-control" id="sessionName" placeholder="default">
+                                        <div class="form-text">WhatsApp session identifier</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="whatsappNumbers" class="form-label">Allowed Phone Numbers</label>
+                                        <input type="text" class="form-control" id="whatsappNumbers" placeholder="+1234567890@@c.us,+0987654321@@c.us">
+                                        <div class="form-text">Comma-separated list of allowed phone numbers (include @@c.us)</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="useWebhook">
+                                            <label class="form-check-label" for="useWebhook">
+                                                Use Webhook Mode
+                                            </label>
+                                        </div>
+                                        <div class="form-text">Enable for better performance with high message volume</div>
+                                    </div>
+                                    <div class="mb-3" id="webhookUrlDiv" style="display: none;">
+                                        <label for="webhookUrl" class="form-label">Webhook URL</label>
+                                        <input type="url" class="form-control" id="webhookUrl" placeholder="http://your-bot-url:8765/api/whatsappwebhook">
+                                        <div class="form-text">URL where WAHA will send webhooks</div>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-save me-2"></i>Save WhatsApp Settings
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- WebSocket Tab -->
+                    <div class="tab-pane fade" id="websocket" role="tabpanel">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="fas fa-plug me-2"></i>WebSocket Configuration
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <form id="websocketForm">
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="websocketEnabled">
+                                            <label class="form-check-label" for="websocketEnabled">
+                                                Enable WebSocket Channel
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="websocketPort" class="form-label">Port</label>
+                                        <input type="number" class="form-control" id="websocketPort" placeholder="8766" min="1" max="65535">
+                                        <div class="form-text">Port for WebSocket connections</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="allowedOrigins" class="form-label">Allowed Origins</label>
+                                        <input type="text" class="form-control" id="allowedOrigins" placeholder="http://localhost:3000,https://your-domain.com">
+                                        <div class="form-text">Comma-separated list of allowed origins for CORS</div>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-save me-2"></i>Save WebSocket Settings
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Terminal Tab -->
+                    <div class="tab-pane fade" id="terminal" role="tabpanel">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="fas fa-terminal me-2"></i>Terminal Configuration
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <form id="terminalForm">
+                                    <div class="mb-3">
+                                        <label for="maxTerminals" class="form-label">Maximum Terminals</label>
+                                        <input type="number" class="form-control" id="maxTerminals" placeholder="5" min="1" max="50">
+                                        <div class="form-text">Maximum number of concurrent terminals</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="terminalTimeout" class="form-label">Terminal Timeout (seconds)</label>
+                                        <input type="number" class="form-control" id="terminalTimeout" placeholder="1800" min="60" max="7200">
+                                        <div class="form-text">Timeout for inactive terminals</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="autoSelectFirstOption">
+                                            <label class="form-check-label" for="autoSelectFirstOption">
+                                                Auto Select First Option
+                                            </label>
+                                        </div>
+                                        <div class="form-text">Automatically select the first option in interactive prompts</div>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-save me-2"></i>Save Terminal Settings
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Claude Hooks Tab -->
+                    <div class="tab-pane fade" id="hooks" role="tabpanel">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="fas fa-link me-2"></i>Claude Hooks Configuration
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <form id="hooksForm">
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="enableHooks">
+                                            <label class="form-check-label" for="enableHooks">
+                                                Enable Claude Hooks
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="hooksPort" class="form-label">WebSocket Port</label>
+                                        <input type="number" class="form-control" id="hooksPort" placeholder="8765" min="1" max="65535">
+                                        <div class="form-text">Port for Claude hooks WebSocket server</div>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-save me-2"></i>Save Claude Hooks Settings
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/manage.js"></script>
+</body>
+</html>
