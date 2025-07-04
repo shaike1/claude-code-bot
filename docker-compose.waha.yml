@@ -32,7 +32,7 @@ services:
       - "8765:8080"  # Web interface and API
       - "8766:8766"  # WebSocket interface
     volumes:
-      - ./src/Backend/appsettings.json:/app/appsettings.json:ro
+      - ./src/Backend/appsettings.json:/app/appsettings.json
       - ./logs:/app/logs
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
