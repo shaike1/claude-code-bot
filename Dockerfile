@@ -25,10 +25,14 @@ RUN dotnet publish "ClaudeMobileTerminal.Backend.csproj" -c Release -o /app/publ
 FROM base AS final
 WORKDIR /app
 
-# Install Claude CLI dependencies
+# Install Node.js and Claude Code CLI
 RUN apt-get update && apt-get install -y \
     curl \
     gnupg \
+    ca-certificates \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && npm install -g @anthropic-ai/claude-code \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the published application
