@@ -138,8 +138,8 @@ public class MainServiceV2(
                     break;
 
                 default:
-                    // Check if it's a button callback (format: terminalId_action)
-                    if (command.Command.Contains("_"))
+                    // Check if it's a button callback (no underscore check - allow all button commands)
+                    if (IsButtonCallback(command.Command))
                     {
                         await HandleButtonCallback(command);
                         return;
@@ -171,8 +171,8 @@ public class MainServiceV2(
                     }
                     else
                     {
-                        await SendResponse(command, 
-                            $"Unknown command: {command.Command}. Type /help for available commands.");
+                        // Show start menu for unknown commands to help users
+                        await HandleStartCommand(command);
                     }
                     break;
             }
@@ -729,6 +729,19 @@ Example:
                 }
                 break;
         }
+    }
+
+    private bool IsButtonCallback(string command)
+    {
+        // Define all possible button callback patterns
+        var buttonPatterns = new[]
+        {
+            "new_terminal", "help_commands", "menu", "start", "list", "settings",
+            "kill_", "_select", "_claude", "_pwd", "_ls", "_help"
+        };
+        
+        return buttonPatterns.Any(pattern => 
+            pattern.EndsWith("_") ? command.StartsWith(pattern) : command == pattern);
     }
 
     private async Task SendResponse(ChannelCommand command, string message, Dictionary<string, string>? buttons = null)

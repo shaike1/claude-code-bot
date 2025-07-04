@@ -86,24 +86,46 @@ public class TelegramChannel(ILogger<TelegramChannel> logger, IOptions<BotConfig
             
             if (buttons != null && buttons.Count > 0)
             {
-                var keyboardButtons = buttons.Select(b => 
-                    InlineKeyboardButton.WithCallbackData(b.Value, b.Key)
-                ).ToArray();
+                logger.LogDebug("Creating {Count} buttons for message", buttons.Count);
                 
-                var rows = new List<InlineKeyboardButton[]>();
-                for (int i = 0; i < keyboardButtons.Length; i += 2)
+                var keyboardButtons = new List<InlineKeyboardButton>();
+                
+                foreach (var button in buttons)
                 {
-                    if (i + 1 < keyboardButtons.Length)
+                    try
                     {
-                        rows.Add([keyboardButtons[i], keyboardButtons[i + 1]]);
+                        // Ensure button text and callback data are not too long
+                        var buttonText = button.Value.Length > 64 ? button.Value.Substring(0, 61) + "..." : button.Value;
+                        var callbackData = button.Key.Length > 64 ? button.Key.Substring(0, 64) : button.Key;
+                        
+                        keyboardButtons.Add(InlineKeyboardButton.WithCallbackData(buttonText, callbackData));
+                        logger.LogDebug("Created button: {Text} -> {Callback}", buttonText, callbackData);
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        rows.Add([keyboardButtons[i]]);
+                        logger.LogError(ex, "Error creating button {Key}:{Value}", button.Key, button.Value);
                     }
                 }
                 
-                replyMarkup = new InlineKeyboardMarkup(rows);
+                if (keyboardButtons.Count > 0)
+                {
+                    // Create rows with 1-2 buttons per row for better mobile experience
+                    var rows = new List<InlineKeyboardButton[]>();
+                    for (int i = 0; i < keyboardButtons.Count; i += 2)
+                    {
+                        if (i + 1 < keyboardButtons.Count)
+                        {
+                            rows.Add([keyboardButtons[i], keyboardButtons[i + 1]]);
+                        }
+                        else
+                        {
+                            rows.Add([keyboardButtons[i]]);
+                        }
+                    }
+                    
+                    replyMarkup = new InlineKeyboardMarkup(rows);
+                    logger.LogDebug("Created inline keyboard with {RowCount} rows", rows.Count);
+                }
             }
 
             messageText = _markdownConverter.ConvertToTelegramMarkdownV2(message);
@@ -238,6 +260,21 @@ public class TelegramChannel(ILogger<TelegramChannel> logger, IOptions<BotConfig
     {
         if (string.IsNullOrWhiteSpace(text)) return;
 
+        // Auto-show menu for common conversation starters
+        if (IsConversationStarter(text))
+        {
+            var startCommand = new ChannelCommand
+            {
+                ChannelType = ChannelType,
+                SenderId = chatId,
+                Command = "start",
+                Arguments = Array.Empty<string>(),
+                RawText = "/start"
+            };
+            CommandReceived?.Invoke(this, startCommand);
+            return;
+        }
+
         // Check if this is an escaped command (// or ./)
         if (text.StartsWith("//") || text.StartsWith("./"))
         {
@@ -271,6 +308,18 @@ public class TelegramChannel(ILogger<TelegramChannel> logger, IOptions<BotConfig
         };
 
         CommandReceived?.Invoke(this, channelCommand);
+    }
+
+    private bool IsConversationStarter(string text)
+    {
+        var starters = new[]
+        {
+            "/start", "start", "hi", "hello", "hey", "menu", "/menu",
+            "help", "what can you do", "commands", "options"
+        };
+        
+        return starters.Any(starter => 
+            text.Trim().Equals(starter, StringComparison.OrdinalIgnoreCase));
     }
 
     private bool IsAuthorizedChat(long chatId)
