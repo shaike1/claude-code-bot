@@ -104,22 +104,13 @@ public class MainServiceV2(
             logger.LogInformation("Received command: {Command} from {ChannelType}:{SenderId}", 
                 command.Command, command.ChannelType, command.SenderId);
 
-            // Check if this is a first-time user and auto-show menu
-            var userKey = $"{command.ChannelType}:{command.SenderId}";
-            if (!_seenUsers.Contains(userKey))
+            // Always check if this looks like a conversation starter and show welcome menu
+            var lowerCommand = command.Command.ToLower();
+            if (IsConversationStarterCommand(lowerCommand))
             {
-                _seenUsers.Add(userKey);
-                logger.LogInformation("First interaction from user {UserKey}, showing welcome menu", userKey);
-                
-                // Show welcome message with menu
+                logger.LogInformation("Conversation starter detected from user {ChannelType}:{SenderId}, showing welcome menu", command.ChannelType, command.SenderId);
                 await HandleWelcomeCommand(command);
-                
-                // If the command was just a greeting or start command, don't process it further
-                var lowerCommand = command.Command.ToLower();
-                if (IsConversationStarterCommand(lowerCommand))
-                {
-                    return;
-                }
+                return;
             }
 
             var commandLower = command.Command.ToLower();
@@ -946,20 +937,35 @@ Example:
 
     private bool IsConversationStarterCommand(string command)
     {
+        var cleanCommand = command.Trim().ToLower();
+        
         var starters = new[]
         {
             "start", "hi", "hello", "hey", "menu", "help", "welcome", "reset",
-            "what can you do", "commands", "options", "yo", "sup", ""
+            "what can you do", "commands", "options", "yo", "sup", "hola",
+            "helo", "helll", "hllo", "hello!", "hi!", "hey!", ""
         };
         
-        // Also detect short random text as conversation starters (1-3 characters)
-        if (command.Trim().Length <= 3 && !string.IsNullOrEmpty(command.Trim()))
+        // Check exact matches
+        if (starters.Contains(cleanCommand))
         {
             return true;
         }
         
-        return starters.Any(starter => 
-            command.Trim().Equals(starter, StringComparison.OrdinalIgnoreCase));
+        // Check if it starts with common greetings (to catch typos like "helll")
+        var greetingPrefixes = new[] { "hell", "hi", "hey", "hel", "start", "menu" };
+        if (greetingPrefixes.Any(prefix => cleanCommand.StartsWith(prefix)))
+        {
+            return true;
+        }
+        
+        // Also detect short random text as conversation starters (1-4 characters)
+        if (cleanCommand.Length <= 4 && !string.IsNullOrEmpty(cleanCommand))
+        {
+            return true;
+        }
+        
+        return false;
     }
 
     private async Task HandleWelcomeCommand(ChannelCommand command)
