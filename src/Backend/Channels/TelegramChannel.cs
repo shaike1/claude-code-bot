@@ -40,6 +40,27 @@ public class TelegramChannel(ILogger<TelegramChannel> logger, IOptions<BotConfig
             var me = await _botClient.GetMeAsync(cancellationToken);
             logger.LogInformation("Telegram bot started: @{Username}", me.Username);
 
+            // Set up bot commands for the menu
+            try
+            {
+                var commands = new[]
+                {
+                    new BotCommand { Command = "start", Description = "🚀 Show main menu with action buttons" },
+                    new BotCommand { Command = "new", Description = "➕ Create new terminal" },
+                    new BotCommand { Command = "list", Description = "📋 List all terminals" },
+                    new BotCommand { Command = "switch", Description = "🔄 Switch between terminals" },
+                    new BotCommand { Command = "session", Description = "🆕 Start new session" },
+                    new BotCommand { Command = "help", Description = "❓ Show help and commands" }
+                };
+                
+                await _botClient.SetMyCommandsAsync(commands, cancellationToken: cancellationToken);
+                logger.LogInformation("Set bot commands for menu");
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to set bot commands, continuing without them");
+            }
+
             var receiverOptions = new ReceiverOptions
             {
                 AllowedUpdates = [UpdateType.Message, UpdateType.CallbackQuery]
@@ -218,7 +239,16 @@ public class TelegramChannel(ILogger<TelegramChannel> logger, IOptions<BotConfig
 
                 logger.LogInformation("Received message from {ChatId}: {Text}", chatId, messageText);
                 
-                ProcessCommand(chatId.ToString(), messageText);
+                // Check if this is the very first message in the chat
+                if (messageText == "/start" && message.Chat.Type == ChatType.Private)
+                {
+                    // Send immediate welcome with buttons for new private chats
+                    ProcessCommand(chatId.ToString(), "start");
+                }
+                else
+                {
+                    ProcessCommand(chatId.ToString(), messageText);
+                }
             }
             else if (update.CallbackQuery is { } callbackQuery)
             {
