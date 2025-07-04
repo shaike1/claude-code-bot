@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  claude-terminal:
+    build: .
+    container_name: claude-terminal-orchestra
+    restart: unless-stopped
+    ports:
+      - "8765:8765"  # WebSocket port for Claude hooks
+      - "8766:8766"  # WebSocket port for web interface
+    volumes:
+      - ./src/Backend/appsettings.json:/app/appsettings.json:ro
+      - ./logs:/app/logs
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - DOTNET_RUNNING_IN_CONTAINER=true
+    networks:
+      - claude-network
+
+networks:
+  claude-network:
+    driver: bridge
+
+volumes:
+  logs:
+    driver: local
