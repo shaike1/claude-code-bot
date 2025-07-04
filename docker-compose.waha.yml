@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  # WAHA WhatsApp HTTP API
+  waha:
+    image: devlikeapro/waha-plus
+    container_name: waha-whatsapp
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./waha-sessions:/app/.sessions
+      - ./waha-media:/app/media
+    environment:
+      - WHATSAPP_HOOK_URL=http://claude-terminal:8765/api/whatsappwebhook
+      - WHATSAPP_HOOK_EVENTS=message
+      - WHATSAPP_HOOK_MAX_RETRIES=3
+    networks:
+      - claude-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Claude Code Bot with WhatsApp support
+  claude-terminal:
+    build: .
+    container_name: claude-terminal-orchestra
+    restart: unless-stopped
+    ports:
+      - "8765:8765"  # Claude hooks and webhooks
+      - "8766:8766"  # WebSocket interface
+    volumes:
+      - ./src/Backend/appsettings.json:/app/appsettings.json:ro
+      - ./logs:/app/logs
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - DOTNET_RUNNING_IN_CONTAINER=true
+      # WhatsApp WAHA Configuration
+      - BotConfiguration__WhatsApp__WAHAUrl=http://waha:3000
+      - BotConfiguration__WhatsApp__Enabled=true
+      - BotConfiguration__WhatsApp__SessionName=default
+      - BotConfiguration__WhatsApp__UseWebhook=true
+      - BotConfiguration__WhatsApp__WebhookUrl=http://claude-terminal:8765/api/whatsappwebhook
+    depends_on:
+      waha:
+        condition: service_healthy
+    networks:
+      - claude-network
+
+networks:
+  claude-network:
+    driver: bridge
+
+volumes:
+  waha-sessions:
+    driver: local
+  waha-media:
+    driver: local
+  logs:
+    driver: local

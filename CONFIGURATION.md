@@ -7,6 +7,7 @@ Comprehensive configuration guide for Claude Code Bot.
 - [Configuration Files](#configuration-files)
 - [Telegram Configuration](#telegram-configuration)
 - [Discord Configuration](#discord-configuration)
+- [WhatsApp Configuration (WAHA)](#whatsapp-configuration-waha)
 - [WebSocket Configuration](#websocket-configuration)
 - [Terminal Settings](#terminal-settings)
 - [Logging Configuration](#logging-configuration)
@@ -43,9 +44,13 @@ The main configuration file is `src/Backend/appsettings.json`:
     },
     "WhatsApp": {
       "Enabled": false,
-      "ApiKey": "YOUR_WHATSAPP_API_KEY",
-      "PhoneNumberId": "",
-      "AllowedNumbers": []
+      "WAHAUrl": "http://localhost:3000",
+      "SessionName": "default",
+      "WebhookUrl": "",
+      "ApiKey": "",
+      "AllowedNumbers": [],
+      "UseWebhook": false,
+      "RequestTimeout": 30
     }
   },
   "TerminalSettings": {
@@ -154,6 +159,198 @@ curl "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates"
     }
   }
 }
+```
+
+## 📱 WhatsApp Configuration (WAHA)
+
+### WAHA Installation
+WAHA (WhatsApp HTTP API) provides a REST API for WhatsApp integration.
+
+```bash
+# Using Docker (recommended)
+docker run -it --rm \
+  -p 3000:3000/tcp \
+  -v $(pwd)/.sessions:/app/.sessions \
+  devlikeapro/waha-plus
+
+# Using Docker Compose
+version: '3.8'
+services:
+  waha:
+    image: devlikeapro/waha-plus
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./waha-sessions:/app/.sessions
+    environment:
+      - WHATSAPP_HOOK_URL=http://claude-code-bot:8765/api/whatsappwebhook
+```
+
+### Basic WhatsApp Setup
+```json
+{
+  "BotConfiguration": {
+    "WhatsApp": {
+      "Enabled": true,
+      "WAHAUrl": "http://localhost:3000",
+      "SessionName": "default",
+      "AllowedNumbers": ["+1234567890@c.us"],
+      "UseWebhook": false,
+      "RequestTimeout": 30
+    }
+  }
+}
+```
+
+### Starting WhatsApp Session
+```bash
+# 1. Start WAHA session
+curl -X POST http://localhost:3000/api/sessions/start \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "default",
+    "config": {
+      "webhooks": [
+        {
+          "url": "http://your-bot-url:8765/api/whatsappwebhook",
+          "events": ["message"]
+        }
+      ]
+    }
+  }'
+
+# 2. Get QR code for WhatsApp authentication
+curl http://localhost:3000/api/sessions/default/auth/qr
+
+# 3. Check session status
+curl http://localhost:3000/api/sessions/default
+```
+
+### WhatsApp Phone Number Format
+```json
+{
+  "WhatsApp": {
+    "AllowedNumbers": [
+      "+1234567890@c.us",     // Individual contact
+      "1234567890-group@g.us" // Group chat
+    ]
+  }
+}
+```
+
+### Webhook Configuration
+```json
+{
+  "WhatsApp": {
+    "Enabled": true,
+    "WAHAUrl": "http://waha:3000",
+    "SessionName": "claude-bot",
+    "WebhookUrl": "http://claude-code-bot:8765/api/whatsappwebhook",
+    "UseWebhook": true,
+    "AllowedNumbers": ["+1234567890@c.us"],
+    "RequestTimeout": 30
+  }
+}
+```
+
+### Advanced WAHA Configuration
+```json
+{
+  "WhatsApp": {
+    "Enabled": true,
+    "WAHAUrl": "http://waha:3000",
+    "SessionName": "production-bot",
+    "WebhookUrl": "https://your-domain.com/api/whatsappwebhook",
+    "ApiKey": "your-waha-api-key",
+    "UseWebhook": true,
+    "AllowedNumbers": [
+      "+1234567890@c.us",
+      "+0987654321@c.us"
+    ],
+    "RequestTimeout": 60,
+    "RetryPolicy": {
+      "MaxRetries": 3,
+      "DelayMs": 1000
+    },
+    "MessageOptions": {
+      "LinkPreview": false,
+      "SendSeen": true
+    }
+  }
+}
+```
+
+### WAHA with Docker Compose Integration
+```yaml
+# docker-compose.yml
+version: '3.8'
+
+services:
+  waha:
+    image: devlikeapro/waha-plus
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./waha-sessions:/app/.sessions
+    environment:
+      - WHATSAPP_HOOK_URL=http://claude-terminal:8765/api/whatsappwebhook
+      - WHATSAPP_HOOK_EVENTS=message
+    networks:
+      - claude-network
+
+  claude-terminal:
+    build: .
+    ports:
+      - "8765:8765"
+      - "8766:8766"
+    depends_on:
+      - waha
+    environment:
+      - BotConfiguration__WhatsApp__WAHAUrl=http://waha:3000
+      - BotConfiguration__WhatsApp__Enabled=true
+    networks:
+      - claude-network
+
+networks:
+  claude-network:
+    driver: bridge
+```
+
+### WhatsApp Commands
+The WhatsApp channel supports the same commands as other channels:
+
+```
+/new - Create new terminal
+/list - List active terminals  
+/kill 1 - Kill terminal with ID 1
+claude - Start Claude Code
+say "ls -la" - Send command to Claude
+//pwd - Run command directly on terminal
+```
+
+### Getting Phone Numbers for AllowedNumbers
+```bash
+# Send a test message and check logs to get the correct format
+# The bot will log the sender ID in the correct format
+
+# Or use WAHA API to get contacts
+curl http://localhost:3000/api/contacts?session=default
+```
+
+### Troubleshooting WhatsApp
+```bash
+# Check WAHA status
+curl http://localhost:3000/api/sessions
+
+# Check session health
+curl http://localhost:3000/api/sessions/default
+
+# Restart session if needed
+curl -X POST http://localhost:3000/api/sessions/default/restart
+
+# Stop and start session
+curl -X POST http://localhost:3000/api/sessions/default/stop
+curl -X POST http://localhost:3000/api/sessions/start -d '{"name":"default"}'
 ```
 
 ## 🎮 Discord Configuration

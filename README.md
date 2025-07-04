@@ -49,7 +49,7 @@ docker-compose up --build -d
 
 ## 📋 Features
 
-- **🔌 Multiple Channels**: Telegram, Discord, WebSocket support
+- **🔌 Multiple Channels**: Telegram, Discord, WhatsApp (WAHA), WebSocket support
 - **🖥️ Remote Terminal Control**: Full Claude Code terminal access
 - **🔍 Clean Output**: Filtered and processed terminal output
 - **🚀 Easy Deployment**: One-command Docker deployment
@@ -139,6 +139,35 @@ docker run -d \
       "BotToken": "YOUR_DISCORD_TOKEN",
       "AllowedGuildIds": [987654321],
       "AllowedChannelIds": [123456789]
+    }
+  }
+}
+```
+
+### WhatsApp Setup (WAHA)
+1. Install WAHA (WhatsApp HTTP API):
+```bash
+docker run -it --rm -p 3000:3000/tcp devlikeapro/waha-plus
+```
+2. Start a WhatsApp session and scan QR code:
+```bash
+curl -X POST http://localhost:3000/api/sessions/start \
+  -H "Content-Type: application/json" \
+  -d '{"name": "default"}'
+```
+3. Get QR code and scan with WhatsApp:
+```bash
+curl http://localhost:3000/api/sessions/default/auth/qr
+```
+4. Update configuration:
+```json
+{
+  "BotConfiguration": {
+    "WhatsApp": {
+      "Enabled": true,
+      "WAHAUrl": "http://localhost:3000",
+      "SessionName": "default",
+      "AllowedNumbers": ["+1234567890"]
     }
   }
 }

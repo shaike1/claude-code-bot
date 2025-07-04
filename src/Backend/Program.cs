@@ -78,10 +78,14 @@ class Program
                 services.AddSingleton<TerminalOutputProcessor>();
                 services.AddSingleton<IMessageChannelManager, MessageChannelManager>();
                 
+                // HTTP Client for WhatsApp
+                services.AddHttpClient<WhatsAppChannel>();
+                
                 // Channel implementations
                 services.AddSingleton<TelegramChannel>();
                 services.AddSingleton<DiscordChannel>();
                 services.AddSingleton<WebSocketChannel>();
+                services.AddSingleton<WhatsAppChannel>();
                 
                 // Register channels with the manager
                 services.AddHostedService<ChannelRegistrationService>();
@@ -113,10 +117,11 @@ public class ChannelRegistrationService : IHostedService
         IMessageChannelManager channelManager,
         TelegramChannel telegram,
         DiscordChannel discord,
-        WebSocketChannel webSocket)
+        WebSocketChannel webSocket,
+        WhatsAppChannel whatsApp)
     {
         _channelManager = channelManager;
-        _channels = new IMessageChannel[] { telegram, discord, webSocket };
+        _channels = new IMessageChannel[] { telegram, discord, webSocket, whatsApp };
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
