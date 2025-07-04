@@ -143,9 +143,18 @@ public class MainServiceV2(
                     await HandleListCommand(command);
                     break;
 
+                case "switch":
+                    await HandleSwitchCommand(command);
+                    break;
+
                 case "new":
                 case "wsl":
                     await HandleNewTerminalCommand(command);
+                    break;
+
+                case "session":
+                case "new_session":
+                    await HandleNewSessionCommand(command);
                     break;
 
                 case "kill":
@@ -243,6 +252,7 @@ public class MainServiceV2(
         if (terminals.Count > 0)
         {
             mainButtons["list"] = "📋 List All Terminals";
+            mainButtons["switch"] = "🔄 Switch Terminal";
             
             // Add quick access to active terminal if exists
             if (!string.IsNullOrEmpty(activeTerminalId))
@@ -253,6 +263,7 @@ public class MainServiceV2(
         }
         
         mainButtons["new_terminal"] = "➕ Create New Terminal";
+        mainButtons["new_session"] = "🆕 New Session";
         mainButtons["settings"] = "⚙️ Settings";
         mainButtons["help_commands"] = "❓ Help & Commands";
         
@@ -299,6 +310,73 @@ public class MainServiceV2(
         terminalButtons["help_commands"] = "❓ Help";
 
         await SendResponse(command, sb.ToString(), terminalButtons);
+    }
+
+    private async Task HandleSwitchCommand(ChannelCommand command)
+    {
+        var terminals = await terminalManager.ListTerminalsAsync();
+        
+        if (terminals.Count == 0)
+        {
+            await SendResponse(command, "No terminals available to switch to. Create a new terminal first!");
+            return;
+        }
+
+        if (terminals.Count == 1)
+        {
+            var singleTerminal = terminals[0];
+            channelManager.SetLastActiveTerminal(command.ChannelType, command.SenderId, singleTerminal.Id);
+            await SendResponse(command, $"Only one terminal available. **{singleTerminal.Id}** is now active.");
+            return;
+        }
+
+        var activeTerminalId = channelManager.GetLastActiveTerminal(command.ChannelType, command.SenderId);
+        var message = "**🔄 Switch to Terminal:**\n\n";
+        var switchButtons = new Dictionary<string, string>();
+        
+        foreach (var terminal in terminals)
+        {
+            var isActive = terminal.Id == activeTerminalId;
+            var status = isActive ? " (current)" : "";
+            message += $"**{terminal.Id}**{status} - {terminal.Status}\n";
+            
+            if (!isActive) // Don't show switch button for current terminal
+            {
+                switchButtons[$"{terminal.Id}_select"] = $"➡️ Switch to {terminal.Id}";
+            }
+        }
+        
+        switchButtons["menu"] = "🔙 Back to Menu";
+        
+        await SendResponse(command, message, switchButtons);
+    }
+
+    private async Task HandleNewSessionCommand(ChannelCommand command)
+    {
+        // Kill all existing terminals for this user to start fresh
+        var terminals = await terminalManager.ListTerminalsAsync();
+        var userActiveTerminals = terminals.Where(t => 
+            channelManager.GetLastActiveTerminal(command.ChannelType, command.SenderId) != null).ToList();
+
+        if (userActiveTerminals.Any())
+        {
+            var message = $"**🆕 Starting New Session**\n\n" +
+                         $"This will close {terminals.Count} existing terminal(s) and start fresh.\n\n" +
+                         $"**Are you sure?**";
+
+            var confirmButtons = new Dictionary<string, string>
+            {
+                ["confirm_new_session"] = "✅ Yes, Start New Session",
+                ["menu"] = "❌ Cancel"
+            };
+
+            await SendResponse(command, message, confirmButtons);
+        }
+        else
+        {
+            // No terminals exist, just create a new one
+            await HandleNewTerminalCommand(command);
+        }
     }
 
     private async Task HandleNewTerminalCommand(ChannelCommand command)
@@ -641,11 +719,17 @@ Example:
 
     private async Task HandleButtonCallback(ChannelCommand command)
     {
+        logger.LogInformation("HandleButtonCallback called with command: {Command}", command.Command);
+        
         // Handle single word commands (no underscore)
         switch (command.Command)
         {
             case "new_terminal":
                 await HandleNewTerminalCommand(command);
+                return;
+                
+            case "new_session":
+                await HandleNewSessionCommand(command);
                 return;
                 
             case "help_commands":
@@ -663,6 +747,14 @@ Example:
                 
             case "settings":
                 await HandleSettingsCommand(command);
+                return;
+                
+            case "switch":
+                await HandleSwitchCommand(command);
+                return;
+                
+            case "confirm_new_session":
+                await HandleConfirmNewSession(command);
                 return;
         }
 
@@ -724,10 +816,17 @@ Example:
                 return;
                 
             case "claude":
+                logger.LogInformation("Executing Claude command in terminal {TerminalId}", terminalId);
                 var success = await terminalManager.ExecuteCommandAsync(terminalId, "claude");
                 if (!success)
                 {
-                    await SendResponse(command, $"Failed to start Claude Code in terminal **{terminalId}**");
+                    logger.LogError("Failed to execute Claude command in terminal {TerminalId}", terminalId);
+                    await SendResponse(command, $"❌ Failed to start Claude Code in terminal **{terminalId}**");
+                }
+                else
+                {
+                    logger.LogInformation("Successfully executed Claude command in terminal {TerminalId}", terminalId);
+                    await SendResponse(command, $"🤖 Starting Claude Code in terminal **{terminalId}**...");
                 }
                 return;
                 
@@ -761,7 +860,7 @@ Example:
     private bool IsButtonCallback(string command)
     {
         // Check for exact single-word button commands
-        var singleWordButtons = new[] { "new_terminal", "help_commands", "menu", "start", "list", "settings" };
+        var singleWordButtons = new[] { "new_terminal", "new_session", "confirm_new_session", "help_commands", "menu", "start", "list", "settings", "switch" };
         if (singleWordButtons.Contains(command))
             return true;
         
@@ -816,6 +915,43 @@ Example:
         };
 
         await SendResponse(command, message, welcomeButtons);
+    }
+
+    private async Task HandleConfirmNewSession(ChannelCommand command)
+    {
+        try
+        {
+            // Kill all existing terminals
+            var terminals = await terminalManager.ListTerminalsAsync();
+            var killTasks = new List<Task>();
+            
+            foreach (var terminal in terminals)
+            {
+                killTasks.Add(Task.Run(async () =>
+                {
+                    await terminalManager.KillTerminalAsync(terminal.Id);
+                    outputProcessor.CleanupTerminal(terminal.Id);
+                    channelManager.CleanupTerminalSubscriptions(terminal.Id);
+                }));
+            }
+            
+            // Wait for all terminals to be killed
+            await Task.WhenAll(killTasks);
+            
+            // Clear user's active terminal
+            channelManager.SetLastActiveTerminal(command.ChannelType, command.SenderId, string.Empty);
+            
+            await SendResponse(command, $"**🧹 Session Cleared!**\n\nTerminated {terminals.Count} terminal(s). Ready for a fresh start!");
+            
+            // Automatically create a new terminal
+            await Task.Delay(1000); // Small delay for better UX
+            await HandleNewTerminalCommand(command);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error during new session creation");
+            await SendResponse(command, "❌ Error creating new session. Please try again.");
+        }
     }
 
     private async Task SendResponse(ChannelCommand command, string message, Dictionary<string, string>? buttons = null)

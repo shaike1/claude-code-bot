@@ -11,6 +11,7 @@ services:
     volumes:
       - ./src/Backend/appsettings.json:/app/appsettings.json
       - ./logs:/app/logs
+      - ./data:/app/data
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - DOTNET_RUNNING_IN_CONTAINER=true
