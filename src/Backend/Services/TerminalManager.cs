@@ -518,13 +518,23 @@ public class TerminalManager : ITerminalManager
                             var text = new string(buffer, 0, read);
                             _logger.LogDebug("Terminal {TerminalId} stderr: {Error}", terminalId, text);
                             
-                            // Filter out command echoes and non-error output
+                            // Check if this is an actual error or should be treated as normal output
                             if (IsActualError(text, terminalId))
                             {
                                 TerminalMessageReceived?.Invoke(this, new TerminalMessage
                                 {
                                     TerminalId = terminalId,
                                     Type = MessageType.Error,
+                                    Content = text
+                                });
+                            }
+                            else if (ShouldShowAsNormalOutput(text, terminalId))
+                            {
+                                // Send non-error stderr as normal output
+                                TerminalMessageReceived?.Invoke(this, new TerminalMessage
+                                {
+                                    TerminalId = terminalId,
+                                    Type = MessageType.Output,
                                     Content = text
                                 });
                             }
@@ -677,6 +687,8 @@ public class TerminalManager : ITerminalManager
         if (string.IsNullOrWhiteSpace(cleanText))
             return false;
         
+        var lowerText = cleanText.ToLower();
+        
         // Get the last command sent to this terminal to check for command echoes
         var lastCommand = GetLastCommandForTerminal(terminalId);
         
@@ -688,7 +700,6 @@ public class TerminalManager : ITerminalManager
         }
         
         // Check for actual error patterns
-        var lowerText = cleanText.ToLower();
         var isActualError = lowerText.Contains("error") ||
                            lowerText.Contains("failed") ||
                            lowerText.Contains("exception") ||
@@ -715,6 +726,39 @@ public class TerminalManager : ITerminalManager
         }
         
         _logger.LogDebug("Ignoring stderr output for terminal {TerminalId}: {Text}", terminalId, cleanText);
+        return false;
+    }
+    
+    private bool ShouldShowAsNormalOutput(string text, string terminalId)
+    {
+        var cleanText = text.Trim();
+        var lowerText = cleanText.ToLower();
+        
+        // Show Claude Code output as normal output
+        if (lowerText.Contains("claude") || 
+            lowerText.Contains("anthropic") ||
+            lowerText.Contains("conversation") ||
+            lowerText.Contains("session") ||
+            lowerText.Contains("welcome") ||
+            lowerText.Contains("connecting") ||
+            lowerText.Contains("loading") ||
+            lowerText.Contains("starting") ||
+            lowerText.Contains("ready") ||
+            lowerText.Contains("initialized"))
+        {
+            return true;
+        }
+        
+        // Show interactive prompts and status messages
+        if (cleanText.Contains(">") || 
+            cleanText.Contains("$") ||
+            cleanText.Contains("?") ||
+            cleanText.Contains(":") ||
+            cleanText.Length > 10) // Longer messages are likely informational
+        {
+            return true;
+        }
+        
         return false;
     }
     
