@@ -105,6 +105,14 @@ public class MainServiceV2(
 
             var lowerCommand = command.Command.ToLower();
             
+            // Debug logging for button detection
+            if (command.Command.Contains("_"))
+            {
+                logger.LogInformation("Command contains underscore, checking if button callback: {Command}", command.Command);
+                var isButton = IsButtonCallback(command.Command);
+                logger.LogInformation("IsButtonCallback result: {IsButton}", isButton);
+            }
+            
             switch (lowerCommand)
             {
                 case "start":
@@ -733,15 +741,33 @@ Example:
 
     private bool IsButtonCallback(string command)
     {
-        // Define all possible button callback patterns
-        var buttonPatterns = new[]
-        {
-            "new_terminal", "help_commands", "menu", "start", "list", "settings",
-            "kill_", "_select", "_claude", "_pwd", "_ls", "_help"
-        };
+        // Check for exact single-word button commands
+        var singleWordButtons = new[] { "new_terminal", "help_commands", "menu", "start", "list", "settings" };
+        if (singleWordButtons.Contains(command))
+            return true;
         
-        return buttonPatterns.Any(pattern => 
-            pattern.EndsWith("_") ? command.StartsWith(pattern) : command == pattern);
+        // Check for kill_ pattern (kill_terminalId)
+        if (command.StartsWith("kill_"))
+            return true;
+        
+        // Check for terminal action patterns (terminalId_action)
+        if (command.Contains("_"))
+        {
+            var parts = command.Split('_', 2);
+            if (parts.Length == 2)
+            {
+                var action = parts[1];
+                var terminalActions = new[] { "select", "claude", "pwd", "ls", "help" };
+                if (terminalActions.Contains(action))
+                    return true;
+                
+                // Also check for numbered choices (terminalId_1, terminalId_2, etc.)
+                if (int.TryParse(action, out _))
+                    return true;
+            }
+        }
+        
+        return false;
     }
 
     private async Task SendResponse(ChannelCommand command, string message, Dictionary<string, string>? buttons = null)
