@@ -107,6 +107,11 @@ public class MainServiceV2(
             
             switch (lowerCommand)
             {
+                case "start":
+                case "menu":
+                    await HandleStartCommand(command);
+                    break;
+
                 case "list":
                     await HandleListCommand(command);
                     break;
@@ -176,6 +181,55 @@ public class MainServiceV2(
         {
             logger.LogError(ex, "Error handling channel command");
         }
+    }
+
+    private async Task HandleStartCommand(ChannelCommand command)
+    {
+        var terminals = await terminalManager.ListTerminalsAsync();
+        var activeTerminalId = channelManager.GetLastActiveTerminal(command.ChannelType, command.SenderId);
+        
+        var message = "**🚀 ClaudeMobileTerminal Control Panel**\n\n";
+        
+        if (terminals.Count > 0)
+        {
+            message += $"**Active Terminals:** {terminals.Count}\n";
+            if (!string.IsNullOrEmpty(activeTerminalId))
+            {
+                var activeTerminal = terminals.FirstOrDefault(t => t.Id == activeTerminalId);
+                if (activeTerminal != null)
+                {
+                    message += $"**Current:** {activeTerminalId} ({activeTerminal.Status})\n";
+                }
+            }
+            message += "\n";
+        }
+        else
+        {
+            message += "No terminals running. Create your first terminal!\n\n";
+        }
+        
+        message += "**Choose an action:**";
+        
+        // Create comprehensive main menu buttons
+        var mainButtons = new Dictionary<string, string>();
+        
+        if (terminals.Count > 0)
+        {
+            mainButtons["list"] = "📋 List All Terminals";
+            
+            // Add quick access to active terminal if exists
+            if (!string.IsNullOrEmpty(activeTerminalId))
+            {
+                mainButtons[$"{activeTerminalId}_claude"] = $"🤖 Claude on {activeTerminalId}";
+                mainButtons[$"{activeTerminalId}_pwd"] = $"📁 PWD on {activeTerminalId}";
+            }
+        }
+        
+        mainButtons["new_terminal"] = "➕ Create New Terminal";
+        mainButtons["settings"] = "⚙️ Settings";
+        mainButtons["help_commands"] = "❓ Help & Commands";
+        
+        await SendResponse(command, message, mainButtons);
     }
 
     private async Task HandleListCommand(ChannelCommand command)
@@ -258,7 +312,27 @@ public class MainServiceV2(
     {
         if (command.Arguments.Length == 0)
         {
-            await SendResponse(command, "Usage: /kill <terminal_id>");
+            // Show terminals with kill buttons
+            var terminals = await terminalManager.ListTerminalsAsync();
+            
+            if (terminals.Count == 0)
+            {
+                await SendResponse(command, "No terminals to kill");
+                return;
+            }
+            
+            var message = "**Select terminal to terminate:**\n\n";
+            var killButtons = new Dictionary<string, string>();
+            
+            foreach (var terminal in terminals)
+            {
+                message += $"**{terminal.Id}** - {terminal.Status}\n";
+                killButtons[$"kill_{terminal.Id}"] = $"❌ Kill {terminal.Id}";
+            }
+            
+            killButtons["menu"] = "🔙 Back to Menu";
+            
+            await SendResponse(command, message, killButtons);
             return;
         }
 
@@ -453,7 +527,15 @@ Example:
   whoami → Runs 'whoami' on B2b
   /A1a //bin/bash → Runs '/bin/bash' on A1a";
 
-        await SendResponse(command, help);
+        // Add quick action buttons to help
+        var helpButtons = new Dictionary<string, string>
+        {
+            ["list"] = "📋 List Terminals", 
+            ["new_terminal"] = "➕ New Terminal",
+            ["settings"] = "⚙️ Settings"
+        };
+
+        await SendResponse(command, help, helpButtons);
     }
 
     private async void OnTerminalMessageReceived(object? sender, TerminalMessage message)
@@ -532,17 +614,29 @@ Example:
 
     private async Task HandleButtonCallback(ChannelCommand command)
     {
-        // Handle special commands that don't follow terminalId_action pattern
-        if (command.Command == "new_terminal")
+        // Handle single word commands (no underscore)
+        switch (command.Command)
         {
-            await HandleNewTerminalCommand(command);
-            return;
-        }
-        
-        if (command.Command == "help_commands")
-        {
-            await HandleHelpCommand(command);
-            return;
+            case "new_terminal":
+                await HandleNewTerminalCommand(command);
+                return;
+                
+            case "help_commands":
+                await HandleHelpCommand(command);
+                return;
+                
+            case "menu":
+            case "start":
+                await HandleStartCommand(command);
+                return;
+                
+            case "list":
+                await HandleListCommand(command);
+                return;
+                
+            case "settings":
+                await HandleSettingsCommand(command);
+                return;
         }
 
         var parts = command.Command.Split('_', 2);
@@ -552,8 +646,34 @@ Example:
             return;
         }
 
-        var terminalId = parts[0];
-        var action = parts[1];
+        var prefix = parts[0];
+        var identifier = parts[1];
+
+        // Handle kill commands
+        if (prefix == "kill")
+        {
+            var success = await terminalManager.KillTerminalAsync(identifier);
+            
+            if (success)
+            {
+                outputProcessor.CleanupTerminal(identifier);
+                channelManager.CleanupTerminalSubscriptions(identifier);
+                
+                await SendResponse(command, $"Terminal **{identifier}** terminated");
+                
+                // Show updated menu
+                await HandleStartCommand(command);
+            }
+            else
+            {
+                await SendResponse(command, $"Failed to kill terminal **{identifier}**");
+            }
+            return;
+        }
+
+        // Handle terminal-specific actions
+        var terminalId = prefix;
+        var action = identifier;
 
         // Verify terminal exists
         var terminal = await terminalManager.GetTerminalAsync(terminalId);
@@ -572,6 +692,8 @@ Example:
         {
             case "select":
                 await SendResponse(command, $"Terminal **{terminalId}** selected as active terminal");
+                // Show updated menu with new active terminal
+                await HandleStartCommand(command);
                 return;
                 
             case "claude":
@@ -622,6 +744,8 @@ Example:
         Console.WriteLine("╠════════════════════════════════════════╣");
         Console.WriteLine("║  Control Claude Code terminals via     ║");
         Console.WriteLine("║  multiple communication channels       ║");
+        Console.WriteLine("║                                        ║");
+        Console.WriteLine("║  Send /start or /menu to begin        ║");
         Console.WriteLine("╚════════════════════════════════════════╝");
         Console.WriteLine();
         Console.WriteLine("Active channels:");

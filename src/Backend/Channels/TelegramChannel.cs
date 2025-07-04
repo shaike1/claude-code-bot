@@ -202,6 +202,8 @@ public class TelegramChannel(ILogger<TelegramChannel> logger, IOptions<BotConfig
             {
                 var chatId = callbackQuery.Message!.Chat.Id;
                 
+                logger.LogInformation("Received callback query from {ChatId}: {Data}", chatId, callbackQuery.Data);
+                
                 if (!IsAuthorizedChat(chatId))
                 {
                     await botClient.AnswerCallbackQueryAsync(callbackQuery.Id, "Unauthorized", cancellationToken: cancellationToken);
