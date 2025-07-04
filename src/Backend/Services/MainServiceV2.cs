@@ -164,6 +164,10 @@ public class MainServiceV2(
                     await HandleHelpCommand(command);
                     break;
 
+                case "setup":
+                    await HandleSetupCommand(command);
+                    break;
+
                 case "welcome":
                     await HandleWelcomeCommand(command);
                     break;
@@ -643,6 +647,33 @@ Example:
         await SendResponse(command, help, helpButtons);
     }
 
+    private async Task HandleSetupCommand(ChannelCommand command)
+    {
+        var setupMessage = @"**🔧 Claude Code Setup Guide**
+
+**Claude Code is installed** ✅ (version 1.0.43)
+
+**To use Claude Code, you need to authenticate:**
+
+**Step 1:** Create a new terminal
+**Step 2:** Run Claude Code  
+**Step 3:** When prompted, authenticate with your Anthropic account
+
+**Authentication Options:**
+• Web login (recommended)
+• API key from console.anthropic.com
+
+**Quick Start:**";
+
+        var setupButtons = new Dictionary<string, string>
+        {
+            ["new_terminal"] = "1️⃣ Create Terminal",
+            ["help_commands"] = "❓ Help & Commands"
+        };
+
+        await SendResponse(command, setupMessage, setupButtons);
+    }
+
     private async void OnTerminalMessageReceived(object? sender, TerminalMessage message)
     {
         try
@@ -764,6 +795,10 @@ Example:
             case "reset":
                 await HandleResetCommand(command);
                 return;
+                
+            case "setup":
+                await HandleSetupCommand(command);
+                return;
         }
 
         var parts = command.Command.Split('_', 2);
@@ -848,7 +883,18 @@ Example:
                 else
                 {
                     logger.LogInformation("Successfully executed Claude command in terminal {TerminalId}", terminalId);
-                    await SendResponse(command, $"🤖 Starting Claude Code with resume in terminal **{terminalId}**...");
+                    
+                    // Add authentication instructions
+                    var loginButtons = new Dictionary<string, string>
+                    {
+                        [$"{terminalId}_login"] = "🔑 Login to Claude",
+                        [$"{terminalId}_help"] = "❓ Help"
+                    };
+                    
+                    await SendResponse(command, 
+                        $"🤖 Claude Code started in terminal **{terminalId}**\n\n" +
+                        $"**Note:** If Claude Code asks for authentication, use the login button below or type commands directly in the terminal.", 
+                        loginButtons);
                 }
                 return;
                 
@@ -881,6 +927,21 @@ Example:
                 await terminalManager.ExecuteCommandAsync(terminalId, "help");
                 return;
                 
+            case "login":
+                // Send Claude Code login command
+                logger.LogInformation("Executing Claude login command in terminal {TerminalId}", terminalId);
+                var loginSuccess = await terminalManager.ExecuteCommandAsync(terminalId, "/login");
+                
+                if (!loginSuccess)
+                {
+                    await SendResponse(command, $"❌ Failed to execute login command in terminal **{terminalId}**");
+                }
+                else
+                {
+                    await SendResponse(command, $"🔑 Running Claude Code login in terminal **{terminalId}**\n\nFollow the authentication instructions that appear in the terminal.");
+                }
+                return;
+                
             default:
                 // Handle numbered choices for interactive menus
                 if (int.TryParse(action, out var choice))
@@ -899,7 +960,7 @@ Example:
     private bool IsButtonCallback(string command)
     {
         // Check for exact single-word button commands
-        var singleWordButtons = new[] { "new_terminal", "new_session", "confirm_new_session", "help_commands", "menu", "start", "list", "settings", "switch", "welcome", "reset" };
+        var singleWordButtons = new[] { "new_terminal", "new_session", "confirm_new_session", "help_commands", "menu", "start", "list", "settings", "switch", "welcome", "reset", "setup" };
         if (singleWordButtons.Contains(command))
             return true;
         
@@ -914,7 +975,7 @@ Example:
             if (parts.Length == 2)
             {
                 var action = parts[1];
-                var terminalActions = new[] { "select", "claude", "pwd", "ls", "help" };
+                var terminalActions = new[] { "select", "claude", "pwd", "ls", "help", "login" };
                 if (terminalActions.Contains(action))
                     return true;
                 
@@ -978,8 +1039,8 @@ Example:
         var welcomeButtons = new Dictionary<string, string>
         {
             ["new_terminal"] = "🚀 Create First Terminal",
-            ["help_commands"] = "❓ View Commands & Help",
-            ["settings"] = "⚙️ Settings"
+            ["setup"] = "🔧 Claude Code Setup",
+            ["help_commands"] = "❓ View Commands & Help"
         };
 
         await SendResponse(command, message, welcomeButtons);
