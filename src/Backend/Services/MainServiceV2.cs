@@ -133,6 +133,13 @@ public class MainServiceV2(
                     break;
 
                 default:
+                    // Check if it's a button callback (format: terminalId_action)
+                    if (command.Command.Contains("_"))
+                    {
+                        await HandleButtonCallback(command);
+                        return;
+                    }
+                    
                     // Check if it might be a terminal ID (case-insensitive)
                     var terminals = await terminalManager.ListTerminalsAsync();
                     var terminal = terminals.FirstOrDefault(t => t.Id.Equals(command.Command, StringComparison.OrdinalIgnoreCase));
@@ -184,6 +191,9 @@ public class MainServiceV2(
         var activeTerminalId = channelManager.GetLastActiveTerminal(command.ChannelType, command.SenderId);
         var sb = new StringBuilder("Active terminals:\n\n");
         
+        // Create dynamic buttons for each terminal
+        var terminalButtons = new Dictionary<string, string>();
+        
         foreach (var terminal in terminals)
         {
             var isActive = terminal.Id == activeTerminalId;
@@ -195,9 +205,19 @@ public class MainServiceV2(
                 sb.AppendLine($"  Task: {terminal.CurrentTask}");
             }
             sb.AppendLine();
+            
+            // Add quick action buttons for each terminal
+            terminalButtons[$"{terminal.Id}_select"] = $"📋 Select {terminal.Id}";
+            terminalButtons[$"{terminal.Id}_claude"] = $"🤖 Claude on {terminal.Id}";
+            terminalButtons[$"{terminal.Id}_pwd"] = $"📁 PWD {terminal.Id}";
+            terminalButtons[$"{terminal.Id}_ls"] = $"📄 LS {terminal.Id}";
         }
+        
+        // Add general action buttons
+        terminalButtons["new_terminal"] = "➕ New Terminal";
+        terminalButtons["help_commands"] = "❓ Help";
 
-        await SendResponse(command, sb.ToString());
+        await SendResponse(command, sb.ToString(), terminalButtons);
     }
 
     private async Task HandleNewTerminalCommand(ChannelCommand command)
@@ -213,10 +233,20 @@ public class MainServiceV2(
             // Set as active terminal
             channelManager.SetLastActiveTerminal(command.ChannelType, command.SenderId, terminal.Id);
             
+            // Create helpful quick action buttons
+            var quickActions = new Dictionary<string, string>
+            {
+                [$"{terminal.Id}_claude"] = "🤖 Start Claude Code",
+                [$"{terminal.Id}_pwd"] = "📁 Show Current Directory",
+                [$"{terminal.Id}_ls"] = "📋 List Files",
+                [$"{terminal.Id}_help"] = "❓ Show Help"
+            };
+            
             await SendResponse(command, 
                 $"Terminal **{terminal.Id}** created successfully and set as active\n" +
                 $"Use `/{terminal.Id} [command]` to send commands\n" +
-                $"Or just type commands directly to send to this terminal");
+                $"Or just type commands directly to send to this terminal\n\n" +
+                $"**Quick Actions:**", quickActions);
         }
         catch (Exception ex)
         {
@@ -497,6 +527,85 @@ Example:
         catch (Exception ex)
         {
             logger.LogError(ex, "Error handling Claude hook event");
+        }
+    }
+
+    private async Task HandleButtonCallback(ChannelCommand command)
+    {
+        // Handle special commands that don't follow terminalId_action pattern
+        if (command.Command == "new_terminal")
+        {
+            await HandleNewTerminalCommand(command);
+            return;
+        }
+        
+        if (command.Command == "help_commands")
+        {
+            await HandleHelpCommand(command);
+            return;
+        }
+
+        var parts = command.Command.Split('_', 2);
+        if (parts.Length != 2)
+        {
+            await SendResponse(command, "Invalid button command format");
+            return;
+        }
+
+        var terminalId = parts[0];
+        var action = parts[1];
+
+        // Verify terminal exists
+        var terminal = await terminalManager.GetTerminalAsync(terminalId);
+        if (terminal == null)
+        {
+            await SendResponse(command, $"Terminal **{terminalId}** not found");
+            return;
+        }
+
+        // Set as active terminal
+        channelManager.SetLastActiveTerminal(command.ChannelType, command.SenderId, terminalId);
+        channelManager.SubscribeToTerminal(terminalId, command.ChannelType, command.SenderId);
+
+        // Handle different actions
+        switch (action)
+        {
+            case "select":
+                await SendResponse(command, $"Terminal **{terminalId}** selected as active terminal");
+                return;
+                
+            case "claude":
+                var success = await terminalManager.ExecuteCommandAsync(terminalId, "claude");
+                if (!success)
+                {
+                    await SendResponse(command, $"Failed to start Claude Code in terminal **{terminalId}**");
+                }
+                return;
+                
+            case "pwd":
+                await terminalManager.ExecuteCommandAsync(terminalId, "pwd");
+                return;
+                
+            case "ls":
+                await terminalManager.ExecuteCommandAsync(terminalId, "ls -la");
+                return;
+                
+            case "help":
+                await terminalManager.ExecuteCommandAsync(terminalId, "help");
+                return;
+                
+            default:
+                // Handle numbered choices for interactive menus
+                if (int.TryParse(action, out var choice))
+                {
+                    await terminalManager.SendChoiceAsync(terminalId, choice);
+                    await SendResponse(command, $"Sent choice **{choice}** to terminal **{terminalId}**");
+                }
+                else
+                {
+                    await SendResponse(command, $"Unknown action: {action}");
+                }
+                break;
         }
     }
 
