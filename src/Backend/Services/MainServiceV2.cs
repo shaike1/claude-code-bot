@@ -257,7 +257,8 @@ public class MainServiceV2(
             // Add quick access to active terminal if exists
             if (!string.IsNullOrEmpty(activeTerminalId))
             {
-                mainButtons[$"{activeTerminalId}_claude"] = $"🤖 Claude on {activeTerminalId}";
+                mainButtons[$"{activeTerminalId}_claude"] = $"🤖 Resume Claude on {activeTerminalId}";
+                mainButtons[$"{activeTerminalId}_claude_new"] = $"🆕 New Claude on {activeTerminalId}";
                 mainButtons[$"{activeTerminalId}_pwd"] = $"📁 PWD on {activeTerminalId}";
             }
         }
@@ -300,9 +301,9 @@ public class MainServiceV2(
             
             // Add quick action buttons for each terminal
             terminalButtons[$"{terminal.Id}_select"] = $"📋 Select {terminal.Id}";
-            terminalButtons[$"{terminal.Id}_claude"] = $"🤖 Claude on {terminal.Id}";
+            terminalButtons[$"{terminal.Id}_claude"] = $"🤖 Claude Resume {terminal.Id}";
+            terminalButtons[$"{terminal.Id}_claude_new"] = $"🆕 Claude New {terminal.Id}";
             terminalButtons[$"{terminal.Id}_pwd"] = $"📁 PWD {terminal.Id}";
-            terminalButtons[$"{terminal.Id}_ls"] = $"📄 LS {terminal.Id}";
         }
         
         // Add general action buttons
@@ -395,10 +396,10 @@ public class MainServiceV2(
             // Create helpful quick action buttons
             var quickActions = new Dictionary<string, string>
             {
-                [$"{terminal.Id}_claude"] = "🤖 Start Claude Code",
-                [$"{terminal.Id}_pwd"] = "📁 Show Current Directory",
-                [$"{terminal.Id}_ls"] = "📋 List Files",
-                [$"{terminal.Id}_help"] = "❓ Show Help"
+                [$"{terminal.Id}_claude"] = "🤖 Claude Code (Resume)",
+                [$"{terminal.Id}_claude_new"] = "🆕 Claude Code (New)",
+                [$"{terminal.Id}_pwd"] = "📁 Show Directory",
+                [$"{terminal.Id}_ls"] = "📋 List Files"
             };
             
             await SendResponse(command, 
@@ -790,9 +791,19 @@ Example:
             return;
         }
 
-        // Handle terminal-specific actions
+        // Handle terminal-specific actions  
         var terminalId = prefix;
         var action = identifier;
+        
+        // Handle compound actions like claude_new
+        if (action.Contains("_"))
+        {
+            var actionParts = action.Split('_', 2);
+            if (actionParts.Length == 2 && actionParts[0] == "claude" && actionParts[1] == "new")
+            {
+                action = "claude_new";
+            }
+        }
 
         // Verify terminal exists
         var terminal = await terminalManager.GetTerminalAsync(terminalId);
@@ -817,7 +828,11 @@ Example:
                 
             case "claude":
                 logger.LogInformation("Executing Claude command in terminal {TerminalId}", terminalId);
-                var success = await terminalManager.ExecuteCommandAsync(terminalId, "claude");
+                
+                // Use claude --resume to maintain conversation context
+                var claudeCommand = "claude --resume";
+                var success = await terminalManager.ExecuteCommandAsync(terminalId, claudeCommand);
+                
                 if (!success)
                 {
                     logger.LogError("Failed to execute Claude command in terminal {TerminalId}", terminalId);
@@ -826,7 +841,24 @@ Example:
                 else
                 {
                     logger.LogInformation("Successfully executed Claude command in terminal {TerminalId}", terminalId);
-                    await SendResponse(command, $"🤖 Starting Claude Code in terminal **{terminalId}**...");
+                    await SendResponse(command, $"🤖 Starting Claude Code with resume in terminal **{terminalId}**...");
+                }
+                return;
+                
+            case "claude_new":
+                // Handle claude_new (new Claude session)
+                logger.LogInformation("Executing new Claude session command in terminal {TerminalId}", terminalId);
+                var newClaudeSuccess = await terminalManager.ExecuteCommandAsync(terminalId, "claude");
+                
+                if (!newClaudeSuccess)
+                {
+                    logger.LogError("Failed to execute new Claude command in terminal {TerminalId}", terminalId);
+                    await SendResponse(command, $"❌ Failed to start new Claude session in terminal **{terminalId}**");
+                }
+                else
+                {
+                    logger.LogInformation("Successfully executed new Claude command in terminal {TerminalId}", terminalId);
+                    await SendResponse(command, $"🆕 Starting new Claude session in terminal **{terminalId}**...");
                 }
                 return;
                 
@@ -878,6 +910,14 @@ Example:
                 var terminalActions = new[] { "select", "claude", "pwd", "ls", "help" };
                 if (terminalActions.Contains(action))
                     return true;
+                
+                // Check for compound actions like claude_new
+                if (action.Contains("_"))
+                {
+                    var actionParts = action.Split('_', 2);
+                    if (actionParts.Length == 2 && actionParts[0] == "claude" && actionParts[1] == "new")
+                        return true;
+                }
                 
                 // Also check for numbered choices (terminalId_1, terminalId_2, etc.)
                 if (int.TryParse(action, out _))
