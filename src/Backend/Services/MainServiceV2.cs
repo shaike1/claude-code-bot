@@ -173,6 +173,14 @@ public class MainServiceV2(
                     await HandleHelpCommand(command);
                     break;
 
+                case "welcome":
+                    await HandleWelcomeCommand(command);
+                    break;
+
+                case "reset":
+                    await HandleResetCommand(command);
+                    break;
+
                 default:
                     // Check if it's a button callback (no underscore check - allow all button commands)
                     if (IsButtonCallback(command.Command))
@@ -207,8 +215,8 @@ public class MainServiceV2(
                     }
                     else
                     {
-                        // Show start menu for unknown commands to help users
-                        await HandleStartCommand(command);
+                        // For any unrecognized text, show welcome menu (helpful for new users)
+                        await HandleWelcomeCommand(command);
                     }
                     break;
             }
@@ -757,6 +765,14 @@ Example:
             case "confirm_new_session":
                 await HandleConfirmNewSession(command);
                 return;
+                
+            case "welcome":
+                await HandleWelcomeCommand(command);
+                return;
+                
+            case "reset":
+                await HandleResetCommand(command);
+                return;
         }
 
         var parts = command.Command.Split('_', 2);
@@ -892,7 +908,7 @@ Example:
     private bool IsButtonCallback(string command)
     {
         // Check for exact single-word button commands
-        var singleWordButtons = new[] { "new_terminal", "new_session", "confirm_new_session", "help_commands", "menu", "start", "list", "settings", "switch" };
+        var singleWordButtons = new[] { "new_terminal", "new_session", "confirm_new_session", "help_commands", "menu", "start", "list", "settings", "switch", "welcome", "reset" };
         if (singleWordButtons.Contains(command))
             return true;
         
@@ -932,9 +948,15 @@ Example:
     {
         var starters = new[]
         {
-            "start", "hi", "hello", "hey", "menu", "help", 
-            "what can you do", "commands", "options", ""
+            "start", "hi", "hello", "hey", "menu", "help", "welcome", "reset",
+            "what can you do", "commands", "options", "yo", "sup", ""
         };
+        
+        // Also detect short random text as conversation starters (1-3 characters)
+        if (command.Trim().Length <= 3 && !string.IsNullOrEmpty(command.Trim()))
+        {
+            return true;
+        }
         
         return starters.Any(starter => 
             command.Trim().Equals(starter, StringComparison.OrdinalIgnoreCase));
@@ -955,6 +977,18 @@ Example:
         };
 
         await SendResponse(command, message, welcomeButtons);
+    }
+
+    private async Task HandleResetCommand(ChannelCommand command)
+    {
+        // Remove user from seen list to trigger welcome menu again
+        var userKey = $"{command.ChannelType}:{command.SenderId}";
+        _seenUsers.Remove(userKey);
+        
+        logger.LogInformation("Reset user session for {UserKey}", userKey);
+        
+        // Show welcome menu
+        await HandleWelcomeCommand(command);
     }
 
     private async Task HandleConfirmNewSession(ChannelCommand command)
