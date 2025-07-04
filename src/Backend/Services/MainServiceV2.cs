@@ -18,6 +18,7 @@ public class MainServiceV2(
     IOptions<TerminalSettings> terminalSettings) : BackgroundService
 {
     private readonly TerminalSettings _terminalSettings = terminalSettings.Value;
+    private readonly HashSet<string> _seenUsers = new();
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -103,7 +104,25 @@ public class MainServiceV2(
             logger.LogInformation("Received command: {Command} from {ChannelType}:{SenderId}", 
                 command.Command, command.ChannelType, command.SenderId);
 
-            var lowerCommand = command.Command.ToLower();
+            // Check if this is a first-time user and auto-show menu
+            var userKey = $"{command.ChannelType}:{command.SenderId}";
+            if (!_seenUsers.Contains(userKey))
+            {
+                _seenUsers.Add(userKey);
+                logger.LogInformation("First interaction from user {UserKey}, showing welcome menu", userKey);
+                
+                // Show welcome message with menu
+                await HandleWelcomeCommand(command);
+                
+                // If the command was just a greeting or start command, don't process it further
+                var lowerCommand = command.Command.ToLower();
+                if (IsConversationStarterCommand(lowerCommand))
+                {
+                    return;
+                }
+            }
+
+            var commandLower = command.Command.ToLower();
             
             // Debug logging for button detection
             if (command.Command.Contains("_"))
@@ -113,7 +132,7 @@ public class MainServiceV2(
                 logger.LogInformation("IsButtonCallback result: {IsButton}", isButton);
             }
             
-            switch (lowerCommand)
+            switch (commandLower)
             {
                 case "start":
                 case "menu":
@@ -768,6 +787,35 @@ Example:
         }
         
         return false;
+    }
+
+    private bool IsConversationStarterCommand(string command)
+    {
+        var starters = new[]
+        {
+            "start", "hi", "hello", "hey", "menu", "help", 
+            "what can you do", "commands", "options", ""
+        };
+        
+        return starters.Any(starter => 
+            command.Trim().Equals(starter, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private async Task HandleWelcomeCommand(ChannelCommand command)
+    {
+        var message = "**🎉 Welcome to ClaudeMobileTerminal!**\n\n" +
+                     "Control Claude Code terminals from anywhere.\n" +
+                     "Create, manage, and execute commands with ease.\n\n" +
+                     "**Choose an action to get started:**";
+        
+        var welcomeButtons = new Dictionary<string, string>
+        {
+            ["new_terminal"] = "🚀 Create First Terminal",
+            ["help_commands"] = "❓ View Commands & Help",
+            ["settings"] = "⚙️ Settings"
+        };
+
+        await SendResponse(command, message, welcomeButtons);
     }
 
     private async Task SendResponse(ChannelCommand command, string message, Dictionary<string, string>? buttons = null)
