@@ -517,12 +517,17 @@ public class TerminalManager : ITerminalManager
                         {
                             var text = new string(buffer, 0, read);
                             _logger.LogDebug("Terminal {TerminalId} stderr: {Error}", terminalId, text);
-                            TerminalMessageReceived?.Invoke(this, new TerminalMessage
+                            
+                            // Filter out command echoes and non-error output
+                            if (IsActualError(text, terminalId))
                             {
-                                TerminalId = terminalId,
-                                Type = MessageType.Error,
-                                Content = text
-                            });
+                                TerminalMessageReceived?.Invoke(this, new TerminalMessage
+                                {
+                                    TerminalId = terminalId,
+                                    Type = MessageType.Error,
+                                    Content = text
+                                });
+                            }
                         }
                     }
                     catch (Exception ex)
@@ -661,5 +666,63 @@ public class TerminalManager : ITerminalManager
             
             _logger.LogDebug("Terminal {TerminalId} raw output: {Output}", terminalId, output.TrimEnd());
         }
+    }
+    
+    private bool IsActualError(string text, string terminalId)
+    {
+        // Clean the text for analysis
+        var cleanText = text.Trim();
+        
+        // Ignore empty text
+        if (string.IsNullOrWhiteSpace(cleanText))
+            return false;
+        
+        // Get the last command sent to this terminal to check for command echoes
+        var lastCommand = GetLastCommandForTerminal(terminalId);
+        
+        // Check if this is just a command echo (common in some terminal setups)
+        if (!string.IsNullOrEmpty(lastCommand) && cleanText.Trim() == lastCommand.Trim())
+        {
+            _logger.LogDebug("Ignoring command echo on stderr for terminal {TerminalId}: {Text}", terminalId, cleanText);
+            return false;
+        }
+        
+        // Check for actual error patterns
+        var lowerText = cleanText.ToLower();
+        var isActualError = lowerText.Contains("error") ||
+                           lowerText.Contains("failed") ||
+                           lowerText.Contains("exception") ||
+                           lowerText.Contains("not found") ||
+                           lowerText.Contains("permission denied") ||
+                           lowerText.Contains("no such file") ||
+                           lowerText.Contains("command not found") ||
+                           lowerText.Contains("syntax error") ||
+                           lowerText.Contains("fatal:") ||
+                           lowerText.Contains("panic:") ||
+                           lowerText.Contains("traceback") ||
+                           lowerText.StartsWith("usage:"); // Usage messages often indicate command errors
+        
+        // Ignore common non-error stderr output
+        var isNonError = lowerText.Contains("warning") || // Warnings are not errors
+                        lowerText.Contains("info") ||
+                        lowerText.Contains("debug") ||
+                        cleanText.Length < 3; // Very short output is usually not an error
+        
+        if (isActualError && !isNonError)
+        {
+            _logger.LogDebug("Detected actual error on stderr for terminal {TerminalId}: {Text}", terminalId, cleanText);
+            return true;
+        }
+        
+        _logger.LogDebug("Ignoring stderr output for terminal {TerminalId}: {Text}", terminalId, cleanText);
+        return false;
+    }
+    
+    private string? GetLastCommandForTerminal(string terminalId)
+    {
+        // This would ideally track the last command sent to each terminal
+        // For now, we'll return null and rely on the other filtering logic
+        // You could enhance this by storing the last command per terminal
+        return null;
     }
 }
