@@ -30,7 +30,12 @@ public class ClaudeOutputProcessor : BaseOutputProcessor
                                    output.Contains("? for shortcuts") ||
                                    output.Contains("Claude Opus") ||
                                    output.Contains("Claude Sonnet") ||
-                                   output.Contains("esc to interrupt");
+                                   output.Contains("esc to interrupt") ||
+                                   output.Contains("Invalid API key") ||
+                                   output.Contains("Please run /login") ||
+                                   output.Contains("api key") ||
+                                   output.Contains("authentication") ||
+                                   output.Contains("/login");
             
             // Check command and output for keywords
             var allText = $"{command} {output}".ToLower();
@@ -64,6 +69,14 @@ public class ClaudeOutputProcessor : BaseOutputProcessor
         
         // Flush if we have bullet point responses
         if (bufferContent.Contains("●"))
+        {
+            return true;
+        }
+        
+        // Flush authentication errors immediately
+        if (bufferContent.Contains("Invalid API key") ||
+            bufferContent.Contains("Please run /login") ||
+            bufferContent.Contains("authentication"))
         {
             return true;
         }

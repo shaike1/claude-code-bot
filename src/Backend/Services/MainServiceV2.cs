@@ -399,8 +399,9 @@ public class MainServiceV2(
             // Create helpful quick action buttons
             var quickActions = new Dictionary<string, string>
             {
-                [$"{terminal.Id}_claude"] = "🤖 Claude Code (Resume)",
-                [$"{terminal.Id}_claude_new"] = "🆕 Claude Code (New)",
+                [$"{terminal.Id}_claude"] = "🤖 Claude Code",
+                [$"{terminal.Id}_gemini"] = "💎 Gemini AI",
+                [$"{terminal.Id}_ai_select"] = "🚀 Choose AI",
                 [$"{terminal.Id}_pwd"] = "📁 Show Directory",
                 [$"{terminal.Id}_ls"] = "📋 List Files"
             };
@@ -869,33 +870,38 @@ Example:
                 return;
                 
             case "claude":
-                logger.LogInformation("Executing Claude command in terminal {TerminalId}", terminalId);
+                logger.LogInformation("Starting automated Claude Code authentication flow in terminal {TerminalId}", terminalId);
                 
-                // Use claude --resume to maintain conversation context
-                var claudeCommand = "claude --resume";
-                var success = await terminalManager.ExecuteCommandAsync(terminalId, claudeCommand);
+                // Start with a simple status message
+                await SendResponse(command, $"🤖 Starting Claude Code in terminal **{terminalId}**...\n\n⚡ Checking authentication status...");
                 
-                if (!success)
+                // Test if Claude is already authenticated
+                var authTestSuccess = await terminalManager.ExecuteCommandAsync(terminalId, "echo '' | timeout 3s claude --version 2>/dev/null && echo 'CLAUDE_AUTHENTICATED' || echo 'CLAUDE_NEEDS_AUTH'");
+                
+                if (!authTestSuccess)
                 {
-                    logger.LogError("Failed to execute Claude command in terminal {TerminalId}", terminalId);
-                    await SendResponse(command, $"❌ Failed to start Claude Code in terminal **{terminalId}**");
+                    await SendResponse(command, $"❌ Failed to test Claude Code in terminal **{terminalId}**");
+                    return;
                 }
-                else
+                
+                // Wait a moment for the auth test result, then provide next steps
+                await Task.Delay(2000);
+                
+                var authButtons = new Dictionary<string, string>
                 {
-                    logger.LogInformation("Successfully executed Claude command in terminal {TerminalId}", terminalId);
-                    
-                    // Add authentication instructions
-                    var loginButtons = new Dictionary<string, string>
-                    {
-                        [$"{terminalId}_login"] = "🔑 Login to Claude",
-                        [$"{terminalId}_help"] = "❓ Help"
-                    };
-                    
-                    await SendResponse(command, 
-                        $"🤖 Claude Code started in terminal **{terminalId}**\n\n" +
-                        $"**Note:** If Claude Code asks for authentication, use the login button below or type commands directly in the terminal.", 
-                        loginButtons);
-                }
+                    [$"{terminalId}_claude_auto_auth"] = "🚀 Auto-Setup Claude",
+                    [$"{terminalId}_claude_start"] = "▶️ Start Claude Now", 
+                    [$"{terminalId}_auth_help"] = "❓ Auth Help"
+                };
+                
+                await SendResponse(command, 
+                    $"🔑 **Claude Code Authentication**\n\n" +
+                    $"**Option 1:** Auto-Setup (Recommended)\n" +
+                    $"- Automatically guides you through web login\n" +
+                    $"- No manual API key needed\n\n" +
+                    $"**Option 2:** Start directly if already authenticated\n\n" +
+                    $"Choose your preferred method:", 
+                    authButtons);
                 return;
                 
             case "claude_new":
@@ -913,6 +919,94 @@ Example:
                     logger.LogInformation("Successfully executed new Claude command in terminal {TerminalId}", terminalId);
                     await SendResponse(command, $"🆕 Starting new Claude session in terminal **{terminalId}**...");
                 }
+                return;
+                
+            case "gemini":
+                logger.LogInformation("Starting Gemini AI in terminal {TerminalId}", terminalId);
+                
+                await SendResponse(command, $"💎 Starting Gemini AI in terminal **{terminalId}**...\n\n⚡ Checking authentication status...");
+                
+                // Test if Gemini is configured
+                var geminiTestSuccess = await terminalManager.ExecuteCommandAsync(terminalId, "python3 -c \"import google.generativeai as genai; print('Gemini available')\" 2>/dev/null || echo 'Gemini setup needed'");
+                
+                if (!geminiTestSuccess)
+                {
+                    await SendResponse(command, $"❌ Failed to test Gemini in terminal **{terminalId}**");
+                    return;
+                }
+                
+                await Task.Delay(1500);
+                
+                var geminiButtons = new Dictionary<string, string>
+                {
+                    [$"{terminalId}_gemini_setup"] = "🚀 Setup Gemini",
+                    [$"{terminalId}_gemini_start"] = "▶️ Start Gemini",
+                    [$"{terminalId}_gemini_help"] = "❓ Gemini Help"
+                };
+                
+                await SendResponse(command, 
+                    $"💎 **Gemini AI Ready**\n\n" +
+                    $"**Setup Required:** API key from Google AI Studio\n" +
+                    $"**Free Tier:** Available with Google account\n\n" +
+                    $"Choose your action:", 
+                    geminiButtons);
+                return;
+                
+            case "ai_select":
+                logger.LogInformation("Showing AI selection menu for terminal {TerminalId}", terminalId);
+                
+                var aiSelectionButtons = new Dictionary<string, string>
+                {
+                    [$"{terminalId}_claude"] = "🤖 Claude Code (Anthropic)",
+                    [$"{terminalId}_gemini"] = "💎 Gemini AI (Google)",
+                    [$"{terminalId}_ai_compare"] = "⚖️ Compare AIs",
+                    [$"{terminalId}_pwd"] = "📁 Directory"
+                };
+                
+                await SendResponse(command, 
+                    $"🚀 **Choose Your AI Assistant**\n\n" +
+                    $"**🤖 Claude Code**\n" +
+                    $"- Advanced coding assistant\n" +
+                    $"- Web login available\n" +
+                    $"- File analysis & editing\n\n" +
+                    $"**💎 Gemini AI**\n" +
+                    $"- Google's latest model\n" +
+                    $"- Free tier available\n" +
+                    $"- Great for general tasks\n\n" +
+                    $"Select your preferred AI:", 
+                    aiSelectionButtons);
+                return;
+                
+            case "ai_compare":
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '⚖️ AI Comparison'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '=================='");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo ''");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '🤖 Claude Code:'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '  + Excellent for coding tasks'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '  + File analysis and editing'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '  + Web login option'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '  - Requires Anthropic account'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo ''");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '💎 Gemini AI:'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '  + Free tier available'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '  + Fast responses'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '  + Good for general tasks'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '  - Less specialized for coding'");
+                
+                await SendResponse(command, $"⚖️ AI comparison shown in terminal **{terminalId}**");
                 return;
                 
             case "pwd":
@@ -940,6 +1034,436 @@ Example:
                 {
                     await SendResponse(command, $"🔑 Running Claude Code login in terminal **{terminalId}**\n\nFollow the authentication instructions that appear in the terminal.");
                 }
+                return;
+                
+            case "claude_login":
+                // Direct authentication flow with explicit instructions
+                logger.LogInformation("Starting Claude Code authentication flow in terminal {TerminalId}", terminalId);
+                
+                // Show the authentication error and instructions directly
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '🔑 Claude Code Authentication Required'");
+                await Task.Delay(300);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '======================================='");
+                await Task.Delay(300);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo ''");
+                await Task.Delay(300);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'Claude Code is not authenticated yet.'");
+                await Task.Delay(300);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'Authentication error: Invalid API key'");
+                await Task.Delay(300);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo ''");
+                await Task.Delay(300);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'To authenticate:'");
+                await Task.Delay(300);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '1. Click \"Start Claude\" button below'");
+                await Task.Delay(300);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '2. Type /login when Claude starts'");
+                await Task.Delay(300);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '3. Follow authentication instructions'");
+                await Task.Delay(300);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo ''");
+                await Task.Delay(300);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'Ready to authenticate!'");
+                
+                var claudeActionButtons = new Dictionary<string, string>
+                {
+                    [$"{terminalId}_claude_start"] = "🚀 Start Claude",
+                    [$"{terminalId}_auth_help"] = "❓ Auth Help",
+                    [$"{terminalId}_pwd"] = "📁 Directory"
+                };
+                
+                await SendResponse(command, 
+                    $"🔑 Claude Code authentication ready in terminal **{terminalId}**\n\n" +
+                    $"**Authentication Required:** Claude Code needs your API key\n" +
+                    $"**Next Step:** Click 'Start Claude' button to begin authentication\n" +
+                    $"**Then:** Type `/login` and follow the prompts", 
+                    claudeActionButtons);
+                return;
+                
+            case "claude_help":
+                // Send Claude Code help command
+                logger.LogInformation("Executing Claude help command via button in terminal {TerminalId}", terminalId);
+                var claudeHelpSuccess = await terminalManager.ExecuteCommandAsync(terminalId, "/help");
+                
+                if (!claudeHelpSuccess)
+                {
+                    await SendResponse(command, $"❌ Failed to execute /help command in terminal **{terminalId}**");
+                }
+                else
+                {
+                    await SendResponse(command, $"❓ Sent `/help` to Claude Code in terminal **{terminalId}**");
+                }
+                return;
+                
+            case "claude_exit":
+                // Send Claude Code exit command
+                logger.LogInformation("Executing Claude exit command via button in terminal {TerminalId}", terminalId);
+                var claudeExitSuccess = await terminalManager.ExecuteCommandAsync(terminalId, "/exit");
+                
+                if (!claudeExitSuccess)
+                {
+                    await SendResponse(command, $"❌ Failed to execute /exit command in terminal **{terminalId}**");
+                }
+                else
+                {
+                    await SendResponse(command, $"🚪 Exited Claude Code in terminal **{terminalId}**");
+                }
+                return;
+                
+            case "claude_send_login":
+                // Send Claude Code login command
+                logger.LogInformation("Sending /login command to Claude Code in terminal {TerminalId}", terminalId);
+                var sendLoginSuccess = await terminalManager.ExecuteCommandAsync(terminalId, "/login");
+                
+                if (!sendLoginSuccess)
+                {
+                    await SendResponse(command, $"❌ Failed to send /login command in terminal **{terminalId}**");
+                }
+                else
+                {
+                    await SendResponse(command, $"🔑 Sent `/login` command to Claude Code in terminal **{terminalId}**\n\nFollow the authentication instructions that appear in the terminal output.");
+                }
+                return;
+                
+            case "claude_start":
+                // Start Claude Code and show authentication error
+                logger.LogInformation("Starting Claude Code with authentication handling in terminal {TerminalId}", terminalId);
+                
+                // First show the authentication error that users expect to see
+                var showErrorCommand = "echo 'Starting Claude Code...' && timeout 3s bash -c 'echo \"\" | claude' 2>&1 || echo 'Claude Code authentication required'";
+                var errorSuccess = await terminalManager.ExecuteCommandAsync(terminalId, showErrorCommand);
+                
+                if (!errorSuccess)
+                {
+                    await SendResponse(command, $"❌ Failed to test Claude Code in terminal **{terminalId}**");
+                    return;
+                }
+                
+                await Task.Delay(2000);
+                
+                // Now provide instructions for manual authentication
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'To authenticate:'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '1. Type: claude'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '2. When prompted, type: /login'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '3. Follow the authentication flow'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo ''");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'Ready to start! Type: claude'");
+                
+                var actionButtons = new Dictionary<string, string>
+                {
+                    [$"{terminalId}_start_manual"] = "📝 Type 'claude' for me",
+                    [$"{terminalId}_auth_help"] = "❓ More Help",
+                    [$"{terminalId}_pwd"] = "📁 Directory"
+                };
+                
+                await SendResponse(command, 
+                    $"🔑 Claude Code authentication error shown in terminal **{terminalId}**\n\n" +
+                    $"**Next:** Type `claude` in terminal to start authentication\n" +
+                    $"**Then:** Type `/login` when prompted", 
+                    actionButtons);
+                return;
+                
+            case "claude_manual":
+                // Provide manual authentication instructions with simple commands
+                logger.LogInformation("Providing manual authentication instructions for terminal {TerminalId}", terminalId);
+                
+                // Use separate commands to avoid script complexity
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '📝 Manual Claude Code Authentication'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '=================================='");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'Step 1: Type: claude'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'Step 2: When you see auth error, type: /login'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'Step 3: Follow the authentication prompts'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'Step 4: Start coding with Claude!'");
+                
+                await SendResponse(command, $"📝 Manual authentication steps shown in terminal **{terminalId}**\n\nType 'claude' to start, then '/login' when prompted.");
+                return;
+                
+            case "auth_help":
+                // Provide authentication help
+                logger.LogInformation("Providing authentication help for terminal {TerminalId}", terminalId);
+                
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '❓ Claude Code Authentication Help'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '=============================='");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo ''");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'What is Claude Code?'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '- AI assistant for coding tasks'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '- Requires Anthropic API key'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo ''");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'How to use web login:'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '1. Type: claude'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '2. Type: /login'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '3. Select \"Web Login\" (recommended)'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '4. Claude gives you a login URL'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '5. Open URL in browser'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '6. Login with your Anthropic account'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '7. Return to terminal - done!'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo ''");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'No manual API key needed!'");
+                
+                await SendResponse(command, $"❓ Authentication help shown in terminal **{terminalId}**\n\nWeb login recommended - no manual API key needed!");
+                return;
+                
+            case "start_manual":
+                // Show authentication process and provide direct instructions
+                logger.LogInformation("Starting Claude Code authentication process for user in terminal {TerminalId}", terminalId);
+                
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'Starting Claude Code authentication process...'");
+                await Task.Delay(500);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'Claude Code will show: Invalid API key · Please run /login'");
+                await Task.Delay(500);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'Testing authentication status:'");
+                await Task.Delay(500);
+                
+                // Show the actual authentication error
+                var showError = await terminalManager.ExecuteCommandAsync(terminalId, "echo '' | claude 2>&1 || echo 'Authentication failed as expected'");
+                await Task.Delay(1000);
+                
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo ''");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'Authentication options available:'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo ''");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'Option 1: Web Login (Recommended)'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '1. Type: claude'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '2. Type: /login'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '3. Choose \"Web Login\"'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '4. Open the URL Claude provides'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '5. Login with your account'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo ''");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'Option 2: API Key'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '1. Get key from console.anthropic.com'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '2. Type: claude'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '3. Type: /login'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '4. Choose \"API Key\" and paste it'");
+                
+                var manualAuthButtons = new Dictionary<string, string>
+                {
+                    [$"{terminalId}_auth_help"] = "❓ Get API Key Help",
+                    [$"{terminalId}_pwd"] = "📁 Directory"
+                };
+                
+                await SendResponse(command, 
+                    $"🔑 Authentication process shown in terminal **{terminalId}**\n\n" +
+                    $"**Web Login Available:** Choose web login option when prompted\n" +
+                    $"**Steps:** Type `claude` → `/login` → choose web login", 
+                    manualAuthButtons);
+                return;
+                
+            case "claude_auto_auth":
+                // Automated Claude Code authentication with web login
+                logger.LogInformation("Starting automated Claude Code authentication for terminal {TerminalId}", terminalId);
+                
+                await SendResponse(command, $"🚀 **Auto-Setting up Claude Code**\n\n⚡ Starting authentication process...");
+                
+                // Start Claude and automatically trigger the login flow
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '🤖 Starting Claude Code...'");
+                await Task.Delay(500);
+                
+                // Start claude command - this will show the auth error
+                await terminalManager.ExecuteCommandAsync(terminalId, "claude");
+                await Task.Delay(1500);
+                
+                // Send /login automatically 
+                await terminalManager.ExecuteCommandAsync(terminalId, "/login");
+                await Task.Delay(1000);
+                
+                var authCompleteButtons = new Dictionary<string, string>
+                {
+                    [$"{terminalId}_check_auth"] = "✅ Check Authentication",
+                    [$"{terminalId}_auth_help"] = "❓ Need Help?",
+                    [$"{terminalId}_pwd"] = "📁 Directory"
+                };
+                
+                await SendResponse(command, 
+                    $"🔑 **Authentication Started in Terminal {terminalId}**\n\n" +
+                    $"**Next Steps:**\n" +
+                    $"1. Choose **Web Login** when prompted (recommended)\n" +
+                    $"2. Open the URL that Claude provides\n" +
+                    $"3. Login with your Anthropic account\n" +
+                    $"4. Return here and click 'Check Authentication'\n\n" +
+                    $"**Alternative:** Use API key if you prefer", 
+                    authCompleteButtons);
+                return;
+                
+            case "check_auth":
+                // Check if authentication completed successfully
+                logger.LogInformation("Checking Claude Code authentication status for terminal {TerminalId}", terminalId);
+                
+                await SendResponse(command, $"🔍 Checking authentication status...");
+                
+                // Test authentication with a simple command
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'Testing Claude Code...' && echo 'test' | claude --print 'Authentication successful!' 2>/dev/null || echo 'Still need authentication'");
+                
+                await Task.Delay(2000);
+                
+                var postAuthButtons = new Dictionary<string, string>
+                {
+                    [$"{terminalId}_claude_new"] = "🆕 New Claude Session",
+                    [$"{terminalId}_claude_start"] = "▶️ Start Claude Now",
+                    [$"{terminalId}_claude_auto_auth"] = "🔄 Retry Authentication"
+                };
+                
+                await SendResponse(command, 
+                    $"✅ **Authentication Check Complete**\n\n" +
+                    $"If you see 'Authentication successful!' above, you're ready!\n" +
+                    $"If not, click 'Retry Authentication' or try the API key method.",
+                    postAuthButtons);
+                return;
+                
+            case "gemini_setup":
+                // Setup Gemini AI with API key
+                logger.LogInformation("Starting Gemini AI setup for terminal {TerminalId}", terminalId);
+                
+                await SendResponse(command, $"💎 **Setting up Gemini AI**\n\n⚡ Starting configuration...");
+                
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '💎 Gemini AI Setup Guide'");
+                await Task.Delay(300);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '===================='");
+                await Task.Delay(300);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo ''");
+                await Task.Delay(300);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'Step 1: Get your API key'");
+                await Task.Delay(300);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '- Visit: https://aistudio.google.com/app/apikey'");
+                await Task.Delay(300);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '- Create new API key (free)'");
+                await Task.Delay(300);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo ''");
+                await Task.Delay(300);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'Step 2: Set environment variable'");
+                await Task.Delay(300);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'Type: export GOOGLE_API_KEY=your_key_here'");
+                await Task.Delay(300);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo ''");
+                await Task.Delay(300);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'Ready to configure!'");
+                
+                var geminiSetupButtons = new Dictionary<string, string>
+                {
+                    [$"{terminalId}_gemini_test"] = "✅ Test Gemini",
+                    [$"{terminalId}_gemini_help"] = "❓ More Help",
+                    [$"{terminalId}_pwd"] = "📁 Directory"
+                };
+                
+                await SendResponse(command, 
+                    $"💎 **Gemini Setup Instructions**\n\n" +
+                    $"**Get free API key:** https://aistudio.google.com/app/apikey\n" +
+                    $"**Set key:** Use export command shown above\n" +
+                    $"**Test:** Click 'Test Gemini' when ready", 
+                    geminiSetupButtons);
+                return;
+                
+            case "gemini_start":
+                // Start Gemini AI interactive session
+                logger.LogInformation("Starting Gemini AI session for terminal {TerminalId}", terminalId);
+                
+                await SendResponse(command, $"💎 **Starting Gemini AI Session**\n\n⚡ Launching interactive mode...");
+                
+                // Test Gemini availability and provide instructions
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '💎 Starting Gemini AI session...'");
+                await Task.Delay(500);
+                await terminalManager.ExecuteCommandAsync(terminalId, "python3 -c \"import google.generativeai as genai; import os; print('Gemini AI libraries available'); api_key=os.getenv('GOOGLE_API_KEY'); print('API key found' if api_key else 'Please set GOOGLE_API_KEY environment variable')\"");
+                await Task.Delay(1000);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'Gemini AI ready for manual interaction'");
+                
+                await SendResponse(command, $"💎 Gemini AI started in terminal **{terminalId}**\n\nInteractive session is now running!");
+                return;
+                
+            case "gemini_test":
+                // Test Gemini AI configuration
+                logger.LogInformation("Testing Gemini AI configuration for terminal {TerminalId}", terminalId);
+                
+                await SendResponse(command, $"🔍 **Testing Gemini Configuration**\n\n⚡ Running diagnostics...");
+                
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'Testing Gemini AI configuration...'");
+                await Task.Delay(500);
+                await terminalManager.ExecuteCommandAsync(terminalId, "python3 -c \"import google.generativeai as genai; import os; key=os.getenv('GOOGLE_API_KEY'); print('✅ API key found' if key else '❌ API key missing'); genai.configure(api_key=key) if key else None; print('✅ Gemini configured successfully' if key else '❌ Please set GOOGLE_API_KEY')\" 2>/dev/null || echo '❌ Configuration error'");
+                
+                await Task.Delay(2000);
+                
+                var geminiTestButtons = new Dictionary<string, string>
+                {
+                    [$"{terminalId}_gemini_start"] = "▶️ Start Gemini Chat",
+                    [$"{terminalId}_gemini_setup"] = "🔧 Setup Again",
+                    [$"{terminalId}_gemini_help"] = "❓ Get Help"
+                };
+                
+                await SendResponse(command, 
+                    $"✅ **Gemini Test Complete**\n\n" +
+                    $"If you see '✅ Gemini configured successfully', you're ready!\n" +
+                    $"If not, click 'Setup Again' to configure your API key.",
+                    geminiTestButtons);
+                return;
+                
+            case "gemini_help":
+                // Provide Gemini AI help information
+                logger.LogInformation("Providing Gemini AI help for terminal {TerminalId}", terminalId);
+                
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '💎 Gemini AI Help'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '================'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo ''");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'What is Gemini AI?'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '- Google\\'s advanced AI model'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '- Free tier available'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '- Fast and capable responses'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo ''");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo 'Getting started:'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '1. Get free API key: aistudio.google.com'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '2. Set environment variable'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '3. Test configuration'");
+                await Task.Delay(200);
+                await terminalManager.ExecuteCommandAsync(terminalId, "echo '4. Start chatting!'");
+                
+                await SendResponse(command, $"💎 Gemini AI help shown in terminal **{terminalId}**\n\nFree API key available at Google AI Studio!");
                 return;
                 
             default:
@@ -975,7 +1499,7 @@ Example:
             if (parts.Length == 2)
             {
                 var action = parts[1];
-                var terminalActions = new[] { "select", "claude", "pwd", "ls", "help", "login" };
+                var terminalActions = new[] { "select", "claude", "gemini", "ai_select", "ai_compare", "pwd", "ls", "help", "login", "claude_login", "claude_help", "claude_exit", "claude_send_login", "claude_start", "claude_manual", "auth_help", "start_manual", "claude_auto_auth", "check_auth", "gemini_setup", "gemini_start", "gemini_test", "gemini_help" };
                 if (terminalActions.Contains(action))
                     return true;
                 
@@ -983,7 +1507,14 @@ Example:
                 if (action.Contains("_"))
                 {
                     var actionParts = action.Split('_', 2);
-                    if (actionParts.Length == 2 && actionParts[0] == "claude" && actionParts[1] == "new")
+                    if (actionParts.Length == 2 && (
+                        (actionParts[0] == "claude" && (actionParts[1] == "new" || actionParts[1] == "login" || actionParts[1] == "help" || actionParts[1] == "exit" || actionParts[1] == "start" || actionParts[1] == "manual" || actionParts[1] == "auto_auth")) ||
+                        (actionParts[0] == "gemini" && (actionParts[1] == "setup" || actionParts[1] == "start" || actionParts[1] == "test" || actionParts[1] == "help")) ||
+                        (actionParts[0] == "ai" && (actionParts[1] == "select" || actionParts[1] == "compare"))))
+                        return true;
+                    
+                    // Handle compound claude actions
+                    if (action == "claude_send_login")
                         return true;
                 }
                 

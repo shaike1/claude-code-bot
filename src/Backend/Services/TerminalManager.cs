@@ -97,6 +97,12 @@ public class TerminalManager : ITerminalManager
                 CreateNoWindow = !_settings.ShowTerminalWindow,
                 WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
             };
+            
+            // Set up environment variables for better Claude Code compatibility
+            processInfo.Environment["TERM"] = "xterm-256color";
+            processInfo.Environment["FORCE_COLOR"] = "1";
+            processInfo.Environment["COLUMNS"] = "80";
+            processInfo.Environment["LINES"] = "24";
         }
 
         var process = new Process { StartInfo = processInfo };
@@ -744,7 +750,12 @@ public class TerminalManager : ITerminalManager
             lowerText.Contains("loading") ||
             lowerText.Contains("starting") ||
             lowerText.Contains("ready") ||
-            lowerText.Contains("initialized"))
+            lowerText.Contains("initialized") ||
+            lowerText.Contains("invalid api key") ||
+            lowerText.Contains("authentication") ||
+            lowerText.Contains("/login") ||
+            lowerText.Contains("api key") ||
+            lowerText.Contains("please run"))
         {
             return true;
         }
