@@ -10,6 +10,7 @@ public interface IMessageChannelManager
     Task StopAllChannelsAsync(CancellationToken cancellationToken);
     Task SendMessageAsync(string channelType, string recipient, string message, Dictionary<string, string>? buttons = null);
     Task BroadcastToSubscribersAsync(string terminalId, string message, Dictionary<string, string>? buttons = null);
+    Task BroadcastMessageAsync(string message, string messageType = "info");
     void SubscribeToTerminal(string terminalId, string channelType, string senderId);
     void UnsubscribeFromTerminal(string terminalId, string channelType, string senderId);
     string? GetLastActiveTerminal(string channelType, string senderId);
@@ -124,6 +125,30 @@ public class MessageChannelManager : IMessageChannelManager
         }
 
         await Task.WhenAll(tasks);
+    }
+
+    public async Task BroadcastMessageAsync(string message, string messageType = "info")
+    {
+        var tasks = new List<Task>();
+        
+        lock (_lock)
+        {
+            foreach (var (channelType, channel) in _channels)
+            {
+                if (channel.IsEnabled)
+                {
+                    // For broadcast messages, we'll send to a system/admin recipient
+                    // Each channel implementation should handle this appropriately
+                    tasks.Add(SendMessageAsync(channelType, "system", $"🔔 **System Notification** ({messageType})\n\n{message}"));
+                }
+            }
+        }
+
+        if (tasks.Count > 0)
+        {
+            await Task.WhenAll(tasks);
+            _logger.LogInformation("Broadcasted {MessageType} message to {ChannelCount} channels", messageType, tasks.Count);
+        }
     }
 
     public void SubscribeToTerminal(string terminalId, string channelType, string senderId)

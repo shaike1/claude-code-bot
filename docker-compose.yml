@@ -13,7 +13,7 @@ services:
       - ./logs:/app/logs
       - ./data:/app/data
       - claude_sessions:/root/.claude_sessions
-      - claude_config:/root/.anthropic
+      - claude_config:/root/.claude
       - terminal_data:/app/terminals
       - workspace:/workspace
     environment:

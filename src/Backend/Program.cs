@@ -86,6 +86,7 @@ class Program
             services.AddSingleton<ITerminalManager, TerminalManager>();
             services.AddSingleton<IClaudeHooksService, ClaudeHooksService>();
             services.AddSingleton<IClaudeSessionManager, ClaudeSessionManager>();
+            services.AddSingleton<IClaudeAuthenticationService, ClaudeAuthenticationService>();
             services.AddSingleton<TerminalOutputProcessor>();
             services.AddSingleton<IMessageChannelManager, MessageChannelManager>();
             
@@ -100,6 +101,7 @@ class Program
             
             // Register channels with the manager
             services.AddHostedService<ChannelRegistrationService>();
+            services.AddHostedService<ClaudeStartupService>();
             services.AddHostedService<MainServiceV2>();
             
             var app = builder.Build();

@@ -14,6 +14,7 @@ public class MainServiceV2(
     ITerminalManager terminalManager,
     IClaudeHooksService claudeHooks,
     IClaudeSessionManager claudeSessionManager,
+    IClaudeAuthenticationService claudeAuthService,
     TerminalOutputProcessor outputProcessor,
     IMessageChannelManager channelManager,
     IOptions<TerminalSettings> terminalSettings) : BackgroundService
@@ -175,6 +176,12 @@ public class MainServiceV2(
 
                 case "reset":
                     await HandleResetCommand(command);
+                    break;
+
+                case "auth":
+                case "login":
+                case "claude-auth":
+                    await HandleAuthCommand(command);
                     break;
 
                 default:
@@ -634,6 +641,8 @@ public class MainServiceV2(
 /<id> [number] - Send choice when prompted
 /rename <old_id> <new_id> - Rename terminal
 /kill <id> - Terminate terminal
+/auth - Check and setup Claude authentication
+/login - Alias for /auth
 /settings - View and modify settings
 /help - Show this help message
 
@@ -659,6 +668,7 @@ Example:
         {
             ["list"] = "📋 List Terminals", 
             ["new_terminal"] = "➕ New Terminal",
+            ["auth"] = "🔑 Authentication",
             ["settings"] = "⚙️ Settings"
         };
 
@@ -816,6 +826,15 @@ Example:
                 
             case "setup":
                 await HandleSetupCommand(command);
+                return;
+                
+            case "auth":
+            case "auth_check":
+                await HandleAuthCommand(command);
+                return;
+                
+            case "auth_manual":
+                await HandleAuthManualCommand(command);
                 return;
         }
 
@@ -3434,6 +3453,113 @@ Example:
         {
             logger.LogError(ex, "Error during new session creation");
             await SendResponse(command, "❌ Error creating new session. Please try again.");
+        }
+    }
+
+    private async Task HandleAuthCommand(ChannelCommand command)
+    {
+        try
+        {
+            logger.LogInformation("Handling auth command from {ChannelType}:{SenderId}", command.ChannelType, command.SenderId);
+
+            // Check current authentication status
+            var isAuthenticated = await claudeAuthService.IsAuthenticatedAsync();
+            
+            if (isAuthenticated)
+            {
+                await SendResponse(command, "✅ **Claude Authentication Status**\n\n" +
+                    "Claude is already authenticated and ready to use!\n\n" +
+                    "You can start using Claude commands in any terminal.");
+                return;
+            }
+
+            await SendResponse(command, "🔍 **Checking Claude Authentication...**\n\nPlease wait...");
+
+            // Attempt to get authentication URL
+            var authResult = await claudeAuthService.EnsureAuthenticatedAsync();
+            
+            if (authResult.IsSuccess)
+            {
+                await SendResponse(command, "✅ **Claude Authentication Successful!**\n\n" +
+                    "Claude is now authenticated and ready to use.");
+            }
+            else if (!string.IsNullOrEmpty(authResult.AuthUrl))
+            {
+                var buttons = new Dictionary<string, string>
+                {
+                    { "🔄 Check Status", "auth_check" },
+                    { "🆘 Manual Setup", "auth_manual" }
+                };
+
+                await SendResponse(command, 
+                    "🔑 **Claude Authentication Required**\n\n" +
+                    "Please complete authentication by visiting:\n\n" +
+                    $"`{authResult.AuthUrl}`\n\n" +
+                    "**Steps:**\n" +
+                    "1. Click the URL above\n" +
+                    "2. Sign in to your Anthropic account\n" +
+                    "3. Authorize the application\n" +
+                    "4. Come back and click 'Check Status'\n\n" +
+                    "⚠️ **Important:** Keep this URL private!", buttons);
+            }
+            else
+            {
+                var buttons = new Dictionary<string, string>
+                {
+                    { "🔄 Retry", "auth" },
+                    { "🆘 Manual Setup", "auth_manual" }
+                };
+
+                await SendResponse(command, 
+                    "❌ **Authentication URL Generation Failed**\n\n" +
+                    $"Error: {authResult.Error ?? "Unknown error"}\n\n" +
+                    "Please try again or use manual setup.", buttons);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error handling auth command");
+            await SendResponse(command, "❌ **Authentication Error**\n\n" +
+                "An error occurred while checking authentication. Please check logs and try again.");
+        }
+    }
+
+    private async Task HandleAuthManualCommand(ChannelCommand command)
+    {
+        try
+        {
+            var message = "🛠️ **Manual Claude Authentication Setup**\n\n" +
+                "If automatic authentication fails, you can set up Claude manually:\n\n" +
+                "**Option 1: Container Terminal**\n" +
+                "1. Create a new terminal: `/new`\n" +
+                "2. Run: `claude /login`\n" +
+                "3. Follow the prompts\n\n" +
+                "**Option 2: External Setup**\n" +
+                "1. Install Claude Code on your local machine\n" +
+                "2. Run: `claude /login`\n" +
+                "3. Copy the `.claude` folder to the container volume\n\n" +
+                "**Option 3: API Key (if available)**\n" +
+                "1. Get your API key from Anthropic Console\n" +
+                "2. Set environment variable: `ANTHROPIC_API_KEY`\n\n" +
+                "**Troubleshooting:**\n" +
+                "- Ensure you have an active Anthropic account\n" +
+                "- Check that your internet connection is stable\n" +
+                "- Restart the container after authentication\n\n" +
+                "Need help? Check the logs or contact support.";
+
+            var buttons = new Dictionary<string, string>
+            {
+                { "🔄 Check Auth", "auth_check" },
+                { "📊 Create Terminal", "new_terminal" },
+                { "🏠 Main Menu", "menu" }
+            };
+
+            await SendResponse(command, message, buttons);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error handling manual auth command");
+            await SendResponse(command, "❌ Error displaying manual setup instructions.");
         }
     }
 
