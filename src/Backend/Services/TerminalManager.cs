@@ -492,6 +492,7 @@ public class TerminalManager : ITerminalManager
                         {
                             var text = new string(buffer, 0, read);
                             _logger.LogDebug("Terminal {TerminalId} stdout: {Output}", terminalId, text);
+                            _logger.LogInformation("Terminal {TerminalId} received output: {Length} chars", terminalId, text.Length);
                             ProcessOutput(terminalId, text);
                         }
                     }

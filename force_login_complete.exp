@@ -1,0 +1,69 @@
+#!/usr/bin/expect -f
+
+set timeout 120
+log_user 1
+
+# Force complete the setup by being very aggressive with inputs
+spawn claude /login
+
+# Multiple strategies to get past theme selection
+expect {
+    "Choose the text style" {
+        puts "\n=== THEME SCREEN - TRYING MULTIPLE APPROACHES ==="
+        
+        # Try sending 1 multiple times with different timing
+        send "1\r"
+        sleep 1
+        send "\r"
+        sleep 1
+        send "1\r"
+        sleep 2
+        
+        # Look for what comes next
+        expect {
+            "Choose login method" {
+                puts "\n=== SUCCESS! GOT TO LOGIN METHOD ==="
+                send "1\r"
+                expect {
+                    -re "https://console\\.anthropic\\.com/auth\\?.*" {
+                        puts "\n=== FOUND PERSONALIZED URL: $expect_out(0,string) ==="
+                    }
+                    -re "Visit: https://.*" {
+                        puts "\n=== FOUND VISIT INSTRUCTION: $expect_out(0,string) ==="
+                        exp_continue
+                    }
+                    "Open this URL" {
+                        puts "\n=== FOUND URL INSTRUCTION ==="
+                        exp_continue
+                    }
+                    timeout {
+                        puts "\n=== TIMEOUT WAITING FOR URL ==="
+                    }
+                }
+            }
+            "Welcome to Claude" {
+                puts "\n=== STILL ON WELCOME SCREEN ==="
+                # Try more aggressive input
+                send "\033[B\r"  # Down arrow + enter
+                sleep 1
+                send "1\r"
+                sleep 2
+                exp_continue
+            }
+            timeout {
+                puts "\n=== TIMEOUT AFTER THEME SELECTION ==="
+                # Try sending escape and other keys
+                send "\033"
+                sleep 1
+                send "q"
+                sleep 1
+                send "\r"
+            }
+        }
+    }
+    timeout {
+        puts "\n=== INITIAL TIMEOUT ==="
+    }
+}
+
+puts "\n=== FORCE LOGIN TEST COMPLETE ==="

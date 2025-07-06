@@ -1,0 +1,38 @@
+#!/usr/bin/expect -f
+
+set timeout 30
+log_user 1
+
+spawn claude /login
+
+expect {
+    "Choose login method" {
+        puts "\n=== LOGIN METHOD PROMPT FOUND ==="
+        send "1\r"
+        expect {
+            -re "Open this URL.*" {
+                puts "\n=== FOUND PERSONALIZED URL INSTRUCTION ==="
+                exp_continue
+            }
+            -re "https://console\\.anthropic\\.com/auth\\?[^\\s]+" {
+                puts "\n=== FOUND PERSONALIZED LOGIN URL: $expect_out(0,string) ==="
+                exp_continue
+            }
+            "console.anthropic.com" {
+                puts "\n=== FOUND GENERIC CONSOLE URL ==="
+                exp_continue
+            }
+            timeout {
+                puts "\n=== TIMEOUT WAITING FOR URL ==="
+            }
+        }
+    }
+    "Invalid API key" {
+        puts "\n=== SHOWS INVALID API KEY - NO LOGIN PROMPT ==="
+    }
+    timeout {
+        puts "\n=== TIMEOUT - NO LOGIN PROMPT ==="
+    }
+}
+
+sleep 2

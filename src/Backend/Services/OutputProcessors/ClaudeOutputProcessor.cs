@@ -35,7 +35,12 @@ public class ClaudeOutputProcessor : BaseOutputProcessor
                                    output.Contains("Please run /login") ||
                                    output.Contains("api key") ||
                                    output.Contains("authentication") ||
-                                   output.Contains("/login");
+                                   output.Contains("/login") ||
+                                   output.Contains("Login method") ||
+                                   output.Contains("Web Login") ||
+                                   output.Contains("console.anthropic.com") ||
+                                   output.Contains("Choose login method") ||
+                                   output.Contains("https://");
             
             // Check command and output for keywords
             var allText = $"{command} {output}".ToLower();
@@ -73,10 +78,18 @@ public class ClaudeOutputProcessor : BaseOutputProcessor
             return true;
         }
         
-        // Flush authentication errors immediately
+        // Flush authentication errors and prompts immediately
         if (bufferContent.Contains("Invalid API key") ||
             bufferContent.Contains("Please run /login") ||
-            bufferContent.Contains("authentication"))
+            bufferContent.Contains("authentication") ||
+            bufferContent.Contains("Login method") ||
+            bufferContent.Contains("Web Login") ||
+            bufferContent.Contains("API Key") ||
+            bufferContent.Contains("https://") ||
+            bufferContent.Contains("console.anthropic.com") ||
+            bufferContent.Contains("Choose login method") ||
+            bufferContent.Contains("Copy and paste") ||
+            bufferContent.Contains("successfully authenticated"))
         {
             return true;
         }

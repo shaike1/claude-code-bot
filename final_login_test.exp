@@ -1,0 +1,52 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+log_user 1
+
+spawn claude /login
+
+expect {
+    "Choose login method" {
+        puts "\n=== LOGIN METHOD SELECTION ==="
+        send "1\r"
+        
+        expect {
+            -re "Open this URL in your browser:" {
+                puts "\n=== FOUND URL INSTRUCTION ==="
+                exp_continue
+            }
+            -re "https://console\\.anthropic\\.com.*" {
+                puts "\n=== FOUND LOGIN URL: $expect_out(0,string) ==="
+            }
+            -re "Visit: https://console\\.anthropic\\.com.*" {
+                puts "\n=== FOUND VISIT URL: $expect_out(0,string) ==="
+            }
+            "console.anthropic.com" {
+                puts "\n=== FOUND CONSOLE REFERENCE ==="
+            }
+            -re "Web Login.*unavailable" {
+                puts "\n=== WEB LOGIN UNAVAILABLE ==="
+            }
+            timeout {
+                puts "\n=== TIMEOUT WAITING FOR URL ==="
+            }
+        }
+    }
+    "Invalid API key" {
+        puts "\n=== INVALID API KEY - TRY AGAIN ==="
+        spawn claude /login
+        expect {
+            "Choose login method" {
+                puts "\n=== SECOND ATTEMPT - LOGIN METHOD ==="
+                send "1\r"
+                expect timeout { puts "\n=== SECOND TIMEOUT ===" }
+            }
+            timeout { puts "\n=== SECOND OVERALL TIMEOUT ===" }
+        }
+    }
+    timeout {
+        puts "\n=== INITIAL TIMEOUT ==="
+    }
+}
+
+puts "\n=== FINAL TEST COMPLETE ==="

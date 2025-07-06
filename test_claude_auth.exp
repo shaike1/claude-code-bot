@@ -1,0 +1,44 @@
+#!/usr/bin/expect -f
+
+set timeout 30
+
+spawn claude /login
+
+# Wait for login options
+expect {
+    "Choose" {
+        send "1\r"
+        exp_continue
+    }
+    "login method" {
+        send "1\r"
+        exp_continue
+    }
+    "Web Login" {
+        send "1\r"
+        exp_continue
+    }
+    "API key" {
+        send "2\r"
+        exp_continue
+    }
+    "console.anthropic.com" {
+        puts "Found console URL - this is the generic console login, not personalized"
+        exp_continue
+    }
+    "https://" {
+        puts "Found URL: $expect_out(0,string)"
+        exp_continue
+    }
+    timeout {
+        puts "Timeout waiting for response"
+        exit 1
+    }
+    eof {
+        puts "Process ended"
+        exit 0
+    }
+}
+
+# Keep the session alive for a bit to capture all output
+sleep 5

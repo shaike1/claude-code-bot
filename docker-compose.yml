@@ -12,6 +12,10 @@ services:
       - ./src/Backend/appsettings.json:/app/appsettings.json
       - ./logs:/app/logs
       - ./data:/app/data
+      - claude_sessions:/root/.claude_sessions
+      - claude_config:/root/.anthropic
+      - terminal_data:/app/terminals
+      - workspace:/workspace
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - DOTNET_RUNNING_IN_CONTAINER=true
@@ -28,4 +32,12 @@ networks:
 
 volumes:
   logs:
+    driver: local
+  claude_sessions:
+    driver: local
+  claude_config:
+    driver: local
+  terminal_data:
+    driver: local
+  workspace:
     driver: local

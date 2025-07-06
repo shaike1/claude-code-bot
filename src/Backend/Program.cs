@@ -85,6 +85,7 @@ class Program
             // Core services
             services.AddSingleton<ITerminalManager, TerminalManager>();
             services.AddSingleton<IClaudeHooksService, ClaudeHooksService>();
+            services.AddSingleton<IClaudeSessionManager, ClaudeSessionManager>();
             services.AddSingleton<TerminalOutputProcessor>();
             services.AddSingleton<IMessageChannelManager, MessageChannelManager>();
             
